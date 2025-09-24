@@ -1,0 +1,68 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <PlatformTarget>x64</PlatformTarget>
+    <Platform>x64</Platform>
+    <Platforms>AnyCPU;x64</Platforms>
+    <RootNamespace>OpenProject.Browser</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OpenProject.Shared\OpenProject.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Http" Version="3.1.18" />
+    <PackageReference Include="RestSharp" Version="106.12.0" />
+    <PackageReference Include="ZetaIpc" Version="1.0.0.11" />
+
+    <PackageReference Include="cef.redist.x64" Version="92.0.26" />
+    <PackageReference Include="CefSharp.Common" Version="92.0.260" />
+    <PackageReference Include="CefSharp.Wpf" Version="92.0.260" />
+
+    <!-- Solving loader bug according to https://github.com/cefsharp/CefSharp/issues/3031 -->
+    <Reference Update="CefSharp">
+      <Private>true</Private>
+    </Reference>
+    <Reference Update="CefSharp.Core">
+      <Private>true</Private>
+    </Reference>
+    <Reference Update="CefSharp.Wpf">
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Assets\BCFierIcon16x16.png" />
+    <None Remove="Assets\BCFierIcon32x32.png" />
+    <None Remove="Assets\BCFierIcon64x64.png" />
+    <None Remove="Assets\openproject.ico" />
+    <None Remove="Settings\OpenProject.Configuration.json" />
+    <None Remove="WebViewIntegration\LandingPage\index.html" />
+    <None Remove="WebViewIntegration\LandingPage\LandingPage.zip" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="WebViewIntegration\LandingPage\index.html" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\BCFierIcon16x16.png" />
+    <EmbeddedResource Include="Assets\BCFierIcon32x32.png" />
+    <EmbeddedResource Include="Assets\BCFierIcon64x64.png" />
+    <EmbeddedResource Include="Settings\OpenProject.Configuration.json" />
+    <EmbeddedResource Include="WebViewIntegration\LandingPage\index.html" />
+    <EmbeddedResource Include="WebViewIntegration\LandingPage\LandingPage.zip" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\openproject.ico" />
+  </ItemGroup>
+
+  <Target Name="ZipEmbeddedLandingPage" BeforeTargets="BeforeBuild" Condition="'$(BuildingInsideVisualStudio)' == 'true'">
+    <Exec Command="build.cmd CreateEmbeddedLandingPageZip --skip" WorkingDirectory="$(MSBuildThisFileDirectory)\..\.." />
+  </Target>
+</Project>

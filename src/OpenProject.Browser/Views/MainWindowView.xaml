@@ -1,0 +1,18 @@
+﻿<Window
+  x:Class="OpenProject.Browser.Views.MainWindowView"
+  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="clr-namespace:OpenProject.Browser.ViewModels"
+  Title="OpenProject Revit Add-in"
+  Icon="../Assets/openproject.ico"
+  WindowStartupLocation="Manual">
+
+  <Grid>
+    <ContentControl HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Stretch">
+      <ContentControl.Content>
+        <Binding Path="(vm:MainWindowViewModel.WebView)" />
+      </ContentControl.Content>
+    </ContentControl>
+  </Grid>
+</Window>

@@ -1,0 +1,19 @@
+﻿<UserControl
+  x:Class="OpenProject.Browser.Views.WebView"
+  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:vm="clr-namespace:OpenProject.Browser.ViewModels">
+
+  <Grid>
+    <!-- Ghost element outside of cefsharp browser. Needed to set focus out of cefsharp when loading new url -->
+    <!-- without user interaction, which results in a bug losing the focus inside the cefsharp browser content. -->
+    <Button x:Name="Ghost" />
+
+    <ContentControl>
+      <ContentControl.Content>
+        <Binding Path="(vm:WebViewModel.Browser)" />
+      </ContentControl.Content>
+    </ContentControl>
+  </Grid>
+
+</UserControl>
