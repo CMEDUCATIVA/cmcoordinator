@@ -12,7 +12,13 @@ namespace OpenProject.Revit.Entry
 {
   public static class RibbonButtonClickHandler
   {
-#if Version2022
+#if Version2026
+    public const string RevitVersion = "2026";
+#elif Version2025
+    public const string RevitVersion = "2025";
+#elif Version2024
+    public const string RevitVersion = "2024";
+#elif Version2022
     public const string RevitVersion = "2022";
 #elif Version2021
     public const string RevitVersion = "2021";
