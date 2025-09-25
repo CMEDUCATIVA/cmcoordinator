@@ -1,10 +1,10 @@
 ;defining variables
 #define Repository     "..\."
-#define MyAppName      "OpenProject Revit AddIn"
+#define MyAppName      "CMProyectos"
 #define MyAppVersion GetFileVersion("..\output\OpenProject.Browser\OpenProject.Browser.exe")
 #define MyAppPublisher "OpenProject"
 #define MyAppURL       "http://www.openproject.org/"
-#define MyAppExeName   "OpenProject.Revit.exe"
+#define MyAppExeName   "CMProyectos.Revit.exe"
 
 #define RevitAppName  "OpenProject.Revit"
 #define RevitAddinFolder "{sd}\ProgramData\Autodesk\Revit\Addins"
@@ -45,7 +45,7 @@ OutputBaseFilename=OpenProject.Revit
 SetupIconFile={#Repository}\Assets\openproject.ico
 Compression=lzma
 SolidCompression=yes
-WizardImageFile={#Repository}\Assets\openproject-bim-banner.bmp
+WizardImageFile={#Repository}\Assets\CMPROYECTOS_LOGO.bmp
 ChangesAssociations=yes
 
 [Languages]
