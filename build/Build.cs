@@ -252,7 +252,10 @@ namespace OpenProject.Shared
           "Release-2019",
           "Release-2020",
           "Release-2021",
-          "Release-2022"
+          "Release-2022",
+          "Release-2024",
+          "Release-2025",
+          "Release-2026"
         };
 
         DotNetBuild(c => c

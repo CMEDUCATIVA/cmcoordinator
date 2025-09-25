@@ -15,6 +15,8 @@
     <RevitVersion Condition="$(Configuration.Contains('2021'))">2021</RevitVersion>
     <RevitVersion Condition="$(Configuration.Contains('2020'))">2020</RevitVersion>
     <RevitVersion Condition="$(Configuration.Contains('2019'))">2019</RevitVersion>
+    <!-- Fallback to 2022 if no specific version is detected -->
+    <RevitVersion Condition="'$(RevitVersion)' == ''">2022</RevitVersion>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
@@ -22,6 +24,8 @@
     <TargetFramework Condition="'$(Revit2025)' == true or '$(Revit2026)' == true">net8.0-windows</TargetFramework>
     <TargetFramework Condition="'$(Revit2021)' == true or '$(Revit2022)' == true or '$(Revit2024)' == true">net48</TargetFramework>
     <TargetFramework Condition="'$(Revit2019)' == true or '$(Revit2020)' == true">net472</TargetFramework>
+    <!-- Fallback to net48 if no specific framework is set -->
+    <TargetFramework Condition="'$(TargetFramework)' == ''">net48</TargetFramework>
     <PlatformTarget>x64</PlatformTarget>
     <Platforms>x64</Platforms>
     <UseWPF>true</UseWPF>

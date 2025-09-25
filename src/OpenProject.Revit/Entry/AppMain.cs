@@ -29,23 +29,23 @@ namespace OpenProject.Revit.Entry
         Logger.ConfigureLogger("OpenProject.Revit.Log..txt");
 
         // Tab
-        const string tabName = "OpenProject";
+        const string tabName = "CMProyectos";
         const string panelName = "BCF management";
         application.CreateRibbonTab(tabName);
         RibbonPanel panel = application.CreateRibbonPanel(tabName, panelName);
 
         // Button Data
         RibbonItem browserButtonItem = panel.AddItem(
-          new PushButtonData("OpenProject",
-            "OpenProject",
+          new PushButtonData("CMProyectos",
+            "CMProyectos",
             Path.Combine(_path, "OpenProject.Revit.dll"),
             "OpenProject.Revit.Entry.CmdMain"));
 
         if (browserButtonItem is PushButton browserButton)
         {
-          browserButton.Image = LoadPngImgSource("OpenProject.Revit.Assets.OpenProjectLogo16.png");
-          browserButton.LargeImage = LoadPngImgSource("OpenProject.Revit.Assets.OpenProjectLogo32.png");
-          browserButton.ToolTip = "OpenProject browser";
+          browserButton.Image = LoadPngImgSource("OpenProject.Revit.Assets.CM__16.png");
+          browserButton.LargeImage = LoadPngImgSource("OpenProject.Revit.Assets.CM__32.png");
+          browserButton.ToolTip = "CMProyectos browser";
         }
 
         RibbonItem settingsButtonItem = panel.AddItem(

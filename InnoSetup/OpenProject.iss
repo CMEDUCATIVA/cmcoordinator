@@ -16,6 +16,13 @@
 #define RevitAddin21  RevitAddinFolder+"\2021\"
 #define RevitFolder22 RevitAddinFolder+"\2022\"+RevitAppName
 #define RevitAddin22  RevitAddinFolder+"\2022\"
+#define RevitFolder24 RevitAddinFolder+"\2024\"+RevitAppName
+#define RevitAddin24  RevitAddinFolder+"\2024\"
+#define RevitFolder25 RevitAddinFolder+"\2025\"+RevitAppName
+#define RevitAddin25  RevitAddinFolder+"\2025\"
+#define RevitFolder26 RevitAddinFolder+"\2026\"+RevitAppName
+#define RevitAddin26  RevitAddinFolder+"\2026\"
+
 
 #define WinAppName    "OpenProject.Browser"
 
@@ -49,6 +56,9 @@ Name: revit19; Description: Addin for Autodesk Revit 2019;  Types: full
 Name: revit20; Description: Addin for Autodesk Revit 2020;  Types: full
 Name: revit21; Description: Addin for Autodesk Revit 2021;  Types: full
 Name: revit22; Description: Addin for Autodesk Revit 2022;  Types: full
+Name: revit24; Description: Addin for Autodesk Revit 2024;  Types: full
+Name: revit25; Description: Addin for Autodesk Revit 2025;  Types: full
+Name: revit26; Description: Addin for Autodesk Revit 2026;  Types: full
 
 [Files]
 
@@ -71,6 +81,22 @@ Source: "{#Repository}\output\OpenProject.Browser\*"; DestDir: "{#RevitFolder21}
 Source: "{#Repository}\output\{#RevitAppName}\Release-2022\*"; DestDir: "{#RevitFolder22}"; Flags: ignoreversion recursesubdirs; Components: revit22 
 Source: "{#Repository}\output\{#RevitAppName}\Release-2022\*.addin"; DestDir: "{#RevitAddin22}"; Flags: ignoreversion; Components: revit22
 Source: "{#Repository}\output\OpenProject.Browser\*"; DestDir: "{#RevitFolder22}\OpenProject.Browser\"; Flags: ignoreversion recursesubdirs; Components: revit22 
+
+;REVIT 2024                                                                                                                                    
+Source: "{#Repository}\output\{#RevitAppName}\Release-2024\*"; DestDir: "{#RevitFolder24}"; Flags: ignoreversion recursesubdirs; Components: revit24 
+Source: "{#Repository}\output\{#RevitAppName}\Release-2024\*.addin"; DestDir: "{#RevitAddin24}"; Flags: ignoreversion; Components: revit24
+Source: "{#Repository}\output\OpenProject.Browser\*"; DestDir: "{#RevitFolder24}\OpenProject.Browser\"; Flags: ignoreversion recursesubdirs; Components: revit24 
+
+;REVIT 2025                                                                                                                                    
+Source: "{#Repository}\output\{#RevitAppName}\Release-2025\*"; DestDir: "{#RevitFolder25}"; Flags: ignoreversion recursesubdirs; Components: revit25 
+Source: "{#Repository}\output\{#RevitAppName}\Release-2025\*.addin"; DestDir: "{#RevitAddin25}"; Flags: ignoreversion; Components: revit25
+Source: "{#Repository}\output\OpenProject.Browser\*"; DestDir: "{#RevitFolder25}\OpenProject.Browser\"; Flags: ignoreversion recursesubdirs; Components: revit25 
+
+;REVIT 2026                                                                                                                                    
+Source: "{#Repository}\output\{#RevitAppName}\Release-2026\*"; DestDir: "{#RevitFolder26}"; Flags: ignoreversion recursesubdirs; Components: revit26 
+Source: "{#Repository}\output\{#RevitAppName}\Release-2026\*.addin"; DestDir: "{#RevitAddin26}"; Flags: ignoreversion; Components: revit26
+Source: "{#Repository}\output\OpenProject.Browser\*"; DestDir: "{#RevitFolder26}\OpenProject.Browser\"; Flags: ignoreversion recursesubdirs; Components: revit26 
+
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

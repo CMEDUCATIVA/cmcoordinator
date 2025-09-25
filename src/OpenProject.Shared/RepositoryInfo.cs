@@ -5,7 +5,7 @@ namespace OpenProject.Shared
     [System.CodeDom.Compiler.GeneratedCode("GitVersionBuild", "")]
     public static class RepositoryInfo
     {
-        public static string GitHubOwner => "opf";
-        public static string GitHubRepository => "openproject-revit-add-in";
+        public static string GitHubOwner => "WolfzTech";
+        public static string GitHubRepository => "openproject-revit-add-in-master";
     }
 }
