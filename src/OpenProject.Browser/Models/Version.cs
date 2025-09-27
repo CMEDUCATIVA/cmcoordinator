@@ -40,7 +40,7 @@ namespace OpenProject.Browser.Models
       {
         if (split.Length >= 1)
         {
-          var str = split[0].StartsWith("v", StringComparison.InvariantCultureIgnoreCase) ? split[0][1..] : split[0];
+          var str = split[0].StartsWith("v", StringComparison.InvariantCultureIgnoreCase) ? split[0].Substring(1) : split[0];
           major = int.Parse(str);
         }
 
