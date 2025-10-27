@@ -58,7 +58,7 @@ namespace OpenProject.Revit.Entry
         {
           settingsButton.Image = LoadPngImgSource("OpenProject.Revit.Assets.Settings32.png");
           settingsButton.LargeImage = LoadPngImgSource("OpenProject.Revit.Assets.Settings32.png");
-          settingsButton.ToolTip = "OpenProject Revit Add-in settings";
+          settingsButton.ToolTip = "CMProyectos Revit Add-in settings";
         }
       }
       catch (Exception exception)

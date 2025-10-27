@@ -45,8 +45,11 @@ namespace OpenProject.Browser.WebViewIntegration
       var isWhiteListedUrl = knownGoodUrls.Any(goodUrl =>
         lastVisitedPage.StartsWith(goodUrl, StringComparison.InvariantCultureIgnoreCase));
 
-      Browser.Address =
-        isWhiteListedUrl ? lastVisitedPage : EmbeddedLandingPageHandler.GetEmbeddedLandingPageIndexUrl();
+      //Browser.Address =
+      //  isWhiteListedUrl ? lastVisitedPage : EmbeddedLandingPageHandler.GetEmbeddedLandingPageIndexUrl();
+
+      // Replace this line to open your desired website
+      Browser.Address = "https://cmproyectos.cmeducativa.es/login"; // Change to your desired URL
 
       Browser.DownloadHandler = _downloadHandler;
       // This handles checking of valid urls, otherwise they're opened in

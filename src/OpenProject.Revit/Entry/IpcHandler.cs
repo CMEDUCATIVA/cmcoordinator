@@ -145,7 +145,7 @@ namespace OpenProject.Revit.Entry
         MessageHandler.ShowWarning(
           "Invalid view",
           "Active UI document is not a 3D view",
-          "In order to capture BCF viewpoints, the OpenProject Revit Add-In requires a 3D view.");
+          "In order to capture BCF viewpoints, the CMProyectos Revit Add-In requires a 3D view.");
         return;
       }
 

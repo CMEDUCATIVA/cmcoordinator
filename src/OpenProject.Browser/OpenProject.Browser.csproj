@@ -9,6 +9,23 @@
     <Platforms>AnyCPU;x64</Platforms>
     <RootNamespace>OpenProject.Browser</RootNamespace>
     <LangVersion>12.0</LangVersion>
+    <FileVersion>25.10.27.0</FileVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <DebugType>embedded</DebugType>
   </PropertyGroup>
 
   <ItemGroup>
@@ -39,6 +56,7 @@
     <None Remove="Assets\BCFierIcon16x16.png" />
     <None Remove="Assets\BCFierIcon32x32.png" />
     <None Remove="Assets\BCFierIcon64x64.png" />
+    <None Remove="Assets\CMicon.ico" />
     <None Remove="Assets\openproject.ico" />
     <None Remove="Settings\OpenProject.Configuration.json" />
     <None Remove="WebViewIntegration\LandingPage\index.html" />
@@ -59,6 +77,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Resource Include="Assets\CMicon.ico" />
     <Resource Include="Assets\openproject.ico" />
   </ItemGroup>
 

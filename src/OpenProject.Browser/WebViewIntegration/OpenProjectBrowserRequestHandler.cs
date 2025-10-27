@@ -61,6 +61,10 @@ namespace OpenProject.Browser.WebViewIntegration
       if (isValidLocalUrl)
         return true;
 
+      // ADD THIS LINE - Allow your specific domain
+      if (request.Url.StartsWith("https://cmproyectos.cmeducativa.es", StringComparison.InvariantCultureIgnoreCase))
+        return true;
+
       var knownGoodUrls = ConfigurationHandler.Settings.GetOpenProjectInstances();
       var isValidExternalUrl = knownGoodUrls.Any(goodUrl =>
         request.Url.StartsWith(goodUrl, StringComparison.InvariantCultureIgnoreCase));

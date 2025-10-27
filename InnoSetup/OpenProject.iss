@@ -2,7 +2,7 @@
 #define Repository     "..\."
 #define MyAppName      "CMProyectos"
 #define MyAppVersion GetFileVersion("..\output\OpenProject.Browser\OpenProject.Browser.exe")
-#define MyAppPublisher "OpenProject"
+#define MyAppPublisher "CMProyectos"
 #define MyAppURL       "http://www.openproject.org/"
 #define MyAppExeName   "CMProyectos.Revit.exe"
 
@@ -42,7 +42,7 @@ DisableProgramGroupPage=yes
 DisableWelcomePage=no
 OutputDir={#Repository}\output
 OutputBaseFilename=OpenProject.Revit
-SetupIconFile={#Repository}\Assets\openproject.ico
+SetupIconFile={#Repository}\Assets\CMicon.ico
 Compression=lzma
 SolidCompression=yes
 WizardImageFile={#Repository}\Assets\CMPROYECTOS_LOGO.bmp

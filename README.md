@@ -1,3 +1,8 @@
+Fv_juanfrancisc797
+
+# To build installer:
+dotnet run --project build --target CreateSetup
+
 # OpenProject Revit Add-In
 
 ## Intro

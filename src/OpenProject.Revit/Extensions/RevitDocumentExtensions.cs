@@ -14,8 +14,8 @@ namespace OpenProject.Revit.Extensions
   /// </summary>
   public static class RevitDocumentExtensions
   {
-    private const string _openProjectOrthogonalViewName = "OpenProject Orthogonal";
-    private const string _openProjectPerspectiveViewName = "OpenProject Perspective";
+    private const string _openProjectOrthogonalViewName = "CMProyectos Orthogonal";
+    private const string _openProjectPerspectiveViewName = "CMProyectos Perspective";
 
     /// <summary>
     /// Creates a map between revit element ids and their IFC GUIDs inside the given document.
