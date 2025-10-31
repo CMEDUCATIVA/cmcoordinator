@@ -9,7 +9,7 @@
     <Platforms>AnyCPU;x64</Platforms>
     <RootNamespace>OpenProject.Browser</RootNamespace>
     <LangVersion>12.0</LangVersion>
-    <FileVersion>25.10.27.0</FileVersion>
+    <FileVersion>25.10.31.0</FileVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">

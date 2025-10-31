@@ -22,6 +22,7 @@ namespace OpenProject.Browser.ViewModels
       _browserManager = browserManager;
       _javaScriptBridge = javaScriptBridge;
 
+      ConfigurationHandler.Settings.EnableDevelopmentTools = false;
       _browserManager.Initialize();
       InitializeIpcConnection();
       CheckForUpdates();

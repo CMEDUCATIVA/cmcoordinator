@@ -6,10 +6,10 @@ namespace OpenProject.Shared
     public static class VersionsService
     {
         public static string Version => "0.1.0";
-        public static string CommitInfo => "5.Branch.main.Sha.0850693eb9b1df01a73a4267fbbaa47365150431";
-        public static string CommitDate => "2025-09-27";
-        public static string CommitHash => "0850693eb9b1df01a73a4267fbbaa47365150431";
-        public static string InformationalVersion => "0.1.0+5.Branch.main.Sha.0850693eb9b1df01a73a4267fbbaa47365150431";
-        public static DateTime BuildDateUtc { get; } = new DateTime(2025, 10, 27, 2, 53, 25, DateTimeKind.Utc);
+        public static string CommitInfo => "7.Branch.main.Sha.11f12829b31e299be55cfbed7ffaea4f74e3f2ce";
+        public static string CommitDate => "2025-10-28";
+        public static string CommitHash => "11f12829b31e299be55cfbed7ffaea4f74e3f2ce";
+        public static string InformationalVersion => "0.1.0+7.Branch.main.Sha.11f12829b31e299be55cfbed7ffaea4f74e3f2ce";
+        public static DateTime BuildDateUtc { get; } = new DateTime(2025, 10, 31, 8, 51, 52, DateTimeKind.Utc);
     }
 }

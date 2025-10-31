@@ -29,7 +29,7 @@ namespace OpenProject.Browser.WebViewIntegration
       ILifeSpanHandler lifeSpanHandler)
     {
       _javaScriptBridge = javaScriptBridge;
-      /_javascriptInterop = javascriptInterop;
+      _javascriptInterop = javascriptInterop;
       _chromiumWebBrowser = chromiumWebBrowser;
       _downloadHandler = downloadHandler;
       _requestHandler = requestHandler;
@@ -39,6 +39,9 @@ namespace OpenProject.Browser.WebViewIntegration
     public void Initialize()
     {
       Browser = _chromiumWebBrowser;
+
+      // Remove the "Revit Add-In settings" div on every page
+      Browser.FrameLoadEnd += BrowserOnFrameLoadEnd_RemoveRevitSettingsDiv;
 
       // Injected target URLs
       var injectBase = "https://cmproyectos.cmeducativa.es";
@@ -106,6 +109,37 @@ namespace OpenProject.Browser.WebViewIntegration
         Browser.ShowDevTools();
         devToolsEnabled = true;
       };
+    }
+
+    // Injects JS after the main frame finishes loading to remove the target div
+    private void BrowserOnFrameLoadEnd_RemoveRevitSettingsDiv(object sender, FrameLoadEndEventArgs e)
+    {
+      if (!e.Frame.IsMain) return;
+
+      const string js = @"
+(function(){
+  const selector = '[data-name=""Revit Add-In settings""]';
+  const removeAll = () => {
+    try {
+      document.querySelectorAll(selector).forEach(el => el.remove());
+    } catch(_) {}
+  };
+  // Initial removal
+  removeAll();
+  // Keep it removed if the app re-renders it later (SPA)
+  if (!window.__rp_removeRevitSettingsObserver) {
+    try {
+      const obs = new MutationObserver(() => removeAll());
+      const root = document.documentElement || document.body;
+      if (root) {
+        obs.observe(root, {childList: true, subtree: true});
+        window.__rp_removeRevitSettingsObserver = obs;
+      }
+    } catch(_) {}
+  }
+})();";
+      // Execute within the loaded page context
+      e.Frame.ExecuteJavaScriptAsync(js);
     }
 
     private async Task InitializeRevitBridgeIfNotPresentAsync()
