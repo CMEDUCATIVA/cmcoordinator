@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 $expectedRoot = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Cmcoordinator\Updates'))
 $jobPath = [IO.Path]::GetFullPath($JobFile)
 if (-not $jobPath.StartsWith($expectedRoot + '\', [StringComparison]::OrdinalIgnoreCase)) { exit 2 }
-$job = Get-Content -LiteralPath $jobPath -Raw | ConvertFrom-Json
+$job = Get-Content -LiteralPath $jobPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $installer = [IO.Path]::GetFullPath($job.Installer)
 if ([IO.Path]::GetDirectoryName($installer) -ne [IO.Path]::GetDirectoryName($jobPath)) { exit 2 }
 $pending = Join-Path $expectedRoot 'pending.json'
