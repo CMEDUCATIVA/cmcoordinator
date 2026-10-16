@@ -14,6 +14,16 @@ namespace OpenProject.Shared
 
       JObject jObject = JObject.Parse(webUiMessage.MessagePayload.Trim('"').Replace("\\\"", "\""));
 
+      // Normalize snapshot if it's a data URI string.
+      var snapshotToken = jObject["snapshot"];
+      if (snapshotToken != null && snapshotToken.Type == JTokenType.String)
+      {
+        jObject["snapshot"] = new JObject
+        {
+          ["snapshot_data"] = snapshotToken
+        };
+      }
+
       return new BcfViewpointWrapper
       {
         Viewpoint = jObject.ToObject<Viewpoint_GET>(),

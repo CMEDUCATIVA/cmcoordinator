@@ -1,6 +1,9 @@
 name: continuous
 
-on: [push]
+on: workflow_dispatch
+
+permissions:
+  contents: read
 
 jobs:
   windows-latest:
@@ -11,9 +14,3 @@ jobs:
         uses: actions/checkout@v1
       - name: Run tests
         run: ./build.cmd Test
-      - name: Run './build.cmd PublishGitHubRelease'
-        run: ./build.cmd PublishGitHubRelease
-        env:
-            GitHubAuthenticationToken: ${{ secrets.GITHUB_TOKEN }}
-            CodeSigningCertBase64: ${{ secrets.CODE_SIGNING_CERT_BASE64 }}
-            CodeSigningCertPassword: ${{ secrets.CODE_SIGNING_CERT_PASSWORD }}

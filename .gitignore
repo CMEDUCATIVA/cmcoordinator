@@ -401,3 +401,15 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# Private local development evidence and credentials
+skill_desarrollo/
+_analysis_saraia_revit/
+.local-dotnet/
+skill_desarrollo/**/Auditoria/ejecuciones/**/diagnostico/
+skill_desarrollo/**/Auditoria/ejecuciones/**/capturas/
+skill_desarrollo/**/Auditoria/descartados/
+skill_desarrollo/IfcOpenShell-*/
+skill_desarrollo/0_Referencias/acceso.md
+skill_desarrollo/**/instalacion/
+**/__pycache__/

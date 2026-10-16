@@ -52,5 +52,10 @@ namespace OpenProject.Shared
     public const string VIEWPOINT_DATA = "ShowViewpoint";
     public const string VIEWPOINT_GENERATION_REQUESTED = "ViewpointGenerationRequest";
     public const string VIEWPOINT_GENERATED = "ViewpointData";
+
+    public const string PINS_UPDATE = "PinsUpdate";
+    public const string PIN_FOCUS = "PinFocus";
+    public const string PIN_REMOVE = "PinRemove";
+    public const string OPEN_URL = "OpenUrl";
   }
 }

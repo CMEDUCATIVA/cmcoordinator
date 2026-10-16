@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <Revit2027 Condition="$(Configuration.Contains('2027'))">true</Revit2027>
     <Revit2026 Condition="$(Configuration.Contains('2026'))">true</Revit2026>
     <Revit2025 Condition="$(Configuration.Contains('2025'))">true</Revit2025>
     <Revit2024 Condition="$(Configuration.Contains('2024'))">true</Revit2024>
@@ -8,6 +9,7 @@
     <Revit2021 Condition="$(Configuration.Contains('2021'))">true</Revit2021>
     <Revit2020 Condition="$(Configuration.Contains('2020'))">true</Revit2020>
     <Revit2019 Condition="$(Configuration.Contains('2019'))">true</Revit2019>
+    <RevitVersion Condition="$(Configuration.Contains('2027'))">2027</RevitVersion>
     <RevitVersion Condition="$(Configuration.Contains('2026'))">2026</RevitVersion>
     <RevitVersion Condition="$(Configuration.Contains('2025'))">2025</RevitVersion>
     <RevitVersion Condition="$(Configuration.Contains('2024'))">2024</RevitVersion>
@@ -21,6 +23,7 @@
   </PropertyGroup>
 
   <PropertyGroup>
+    <TargetFramework Condition="'$(Revit2027)' == true">net10.0-windows7.0</TargetFramework>
     <TargetFramework Condition="'$(Revit2025)' == true or '$(Revit2026)' == true">net8.0-windows</TargetFramework>
     <TargetFramework Condition="'$(Revit2021)' == true or '$(Revit2022)' == true or '$(Revit2024)' == true">net48</TargetFramework>
     <TargetFramework Condition="'$(Revit2019)' == true or '$(Revit2020)' == true">net472</TargetFramework>
@@ -30,10 +33,12 @@
     <Platforms>x64</Platforms>
     <UseWPF>true</UseWPF>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    <Configurations>Debug;Release;Release-2019;Debug-2019;Release-2020;Debug-2020;Release-2021;Debug-2021;Release-2022;Debug-2022;;Release-2024;Debug-2024;Release-2025;Debug-2025;Release-2026;Debug-2026</Configurations>
+    <EnableAppDataDeployment Condition="'$(EnableAppDataDeployment)' == ''">false</EnableAppDataDeployment>
+    <Configurations>Debug;Release;Release-2019;Debug-2019;Release-2020;Debug-2020;Release-2021;Debug-2021;Release-2022;Debug-2022;;Release-2024;Debug-2024;Release-2025;Debug-2025;Release-2026;Debug-2026;Release-2027;Debug-2027</Configurations>
   </PropertyGroup>
 
   <PropertyGroup>
+    <DefineConstants Condition="'$(Revit2027)' == true">$(DefineConstants);Version2027</DefineConstants>
     <DefineConstants Condition="'$(Revit2026)' == true">$(DefineConstants);Version2026</DefineConstants>
     <DefineConstants Condition="'$(Revit2025)' == true">$(DefineConstants);Version2025</DefineConstants>
     <DefineConstants Condition="'$(Revit2024)' == true">$(DefineConstants);Version2024</DefineConstants>
@@ -107,11 +112,33 @@
     <DebugType>embedded</DebugType>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release-2027|x64'">
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug-2027|x64'">
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
   <ItemGroup>
     <EmbeddedResource Include="Assets\**\*" />
   </ItemGroup>
-
   <ItemGroup>
+    <Content Include="..\..\tools\local-live-viewer\server.mjs" Link="LiveViewer\server.mjs" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\tools\local-live-viewer\lib\*.mjs" Link="LiveViewer\lib\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\tools\local-live-viewer\ifc\*.py" Link="LiveViewer\ifc\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\tools\local-live-viewer\public\*" Link="LiveViewer\public\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\tools\local-live-viewer\node_modules\three\build\three.module.js;..\..\tools\local-live-viewer\node_modules\three\build\three.core.js"
+      Link="LiveViewer\node_modules\three\build\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\tools\local-live-viewer\node_modules\three\examples\jsm\controls\OrbitControls.js"
+      Link="LiveViewer\node_modules\three\examples\jsm\controls\OrbitControls.js" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\tools\local-live-viewer\node_modules\three\LICENSE" Link="LiveViewer\node_modules\three\LICENSE" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="$(PkgSQLitePCLRaw_lib_e_sqlite3)\runtimes\win-x64\native\e_sqlite3.dll"
+      Link="e_sqlite3.dll" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.18" />
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.10" GeneratePathProperty="true" />
     <PackageReference Include="Nice3point.Revit.Api.RevitAPI" Version="$(RevitVersion).*" />
     <PackageReference Include="Nice3point.Revit.Api.RevitAPIUI" Version="$(RevitVersion).*" />
     <!--<PackageReference Condition="'$(Revit2022)' == true" Include="Revit_All_Main_Versions_API_x64" Version="2022.0.0" />
@@ -127,27 +154,30 @@
     </ProjectReference>
   </ItemGroup>
 
-  <ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48' or '$(TargetFramework)' == 'net472'">
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48' or '$(TargetFramework)' == 'net472'">
+    <Reference Include="System.Net.Http" />
+  </ItemGroup>
+
   <ItemGroup>
-    <None Update="OpenProject.Revit.addin">
+    <None Update="Cmcoordinator.addin">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
 
-  <Target Name="CopyBrowserApp" AfterTargets="Build" Condition="$(Configuration.Contains('Debug')) And '$(BuildingInsideVisualStudio)' == 'true'">
-    <Exec Command="dotnet build -c Debug -o bin/TempDebug" WorkingDirectory="$(MSBuildThisFileDirectory)\..\..\src\OpenProject.Browser" />
+  <Target Name="CopyBrowserApp" AfterTargets="Build" Condition="$(Configuration.Contains('Debug')) And '$(BuildingInsideVisualStudio)' == 'true' And '$(EnableAppDataDeployment)' == 'true'">
     <ItemGroup>
       <SourceDLLs Include="$(TargetDir)**\*.*" />
       <SourceManifest Include="$(TargetDir)*.addin" />
-      <OpenProjectBrowser Include="$(SolutionDir)\src\OpenProject.Browser\bin\TempDebug\**\*.*" />
+      <OpenProjectBrowser Include="$(SolutionDir)\src\OpenProject.Browser\bin\x64\Debug\net48\**\*.*" />
     </ItemGroup>
     <Copy SourceFiles="@(SourceDLLs)" DestinationFolder="$(AppData)\Autodesk\REVIT\Addins\$(RevitVersion)\$(ProjectName)\%(RecursiveDir)" />
     <Copy SourceFiles="@(SourceManifest)" DestinationFolder="$(AppData)\Autodesk\REVIT\Addins\$(RevitVersion)\" />
-    <Copy SourceFiles="@(OpenProjectBrowser)" DestinationFolder="$(AppData)\Autodesk\REVIT\Addins\$(RevitVersion)\$(ProjectName)\OpenProject.Browser\%(RecursiveDir)" />
+    <Copy SourceFiles="@(OpenProjectBrowser)" DestinationFolder="$(AppData)\Autodesk\REVIT\Addins\$(RevitVersion)\$(ProjectName)\%(RecursiveDir)" />
   </Target>
 </Project>

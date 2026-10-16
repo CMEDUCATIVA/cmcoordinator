@@ -21,7 +21,7 @@ namespace OpenProject.Browser
         .ConfigureIoCContainer()
         .BuildServiceProvider();
 
-      Logger.ConfigureLogger("OpenProject.Log..txt");
+      Logger.ConfigureLogger("OpenProject.Browser.Log..txt");
     }
 
     private void OnStartUp(object sender, StartupEventArgs e)

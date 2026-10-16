@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Autodesk.Revit.DB;
@@ -14,8 +14,8 @@ namespace OpenProject.Revit.Extensions
   /// </summary>
   public static class RevitDocumentExtensions
   {
-    private const string _openProjectOrthogonalViewName = "CMProyectos Orthogonal";
-    private const string _openProjectPerspectiveViewName = "CMProyectos Perspective";
+    private const string _openProjectOrthogonalViewName = "Cmcoordinator Orthogonal";
+    private const string _openProjectPerspectiveViewName = "Cmcoordinator Perspective";
 
     /// <summary>
     /// Creates a map between revit element ids and their IFC GUIDs inside the given document.

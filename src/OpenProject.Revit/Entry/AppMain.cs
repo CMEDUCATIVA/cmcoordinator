@@ -7,6 +7,9 @@ using System.Windows.Media.Imaging;
 using Autodesk.Revit.Attributes;
 using Autodesk.Revit.UI;
 using OpenProject.Shared.Logging;
+using OpenProject.Revit.Views;
+using OpenProject.Revit.Services;
+using OpenProject.Revit.LiveSync;
 
 namespace OpenProject.Revit.Entry
 {
@@ -27,17 +30,22 @@ namespace OpenProject.Revit.Entry
       try
       {
         Logger.ConfigureLogger("OpenProject.Revit.Log..txt");
+        var assemblyPath = Assembly.GetExecutingAssembly().Location;
+        var lastWrite = File.GetLastWriteTime(assemblyPath);
+        Serilog.Log.Information("OpenProject.Revit build stamp path={Path} lastWrite={LastWrite}", assemblyPath, lastWrite);
+        RevitBridgeClient.Initialize();
+        RevitBridgeClient.ApplySettings(McpSettingsStore.Load());
 
         // Tab
-        const string tabName = "CMProyectos";
+        const string tabName = "Cmcoordinator";
         const string panelName = "BCF management";
         application.CreateRibbonTab(tabName);
         RibbonPanel panel = application.CreateRibbonPanel(tabName, panelName);
 
         // Button Data
         RibbonItem browserButtonItem = panel.AddItem(
-          new PushButtonData("CMProyectos",
-            "CMProyectos",
+          new PushButtonData("Cmcoordinator",
+            "Cmcoordinator",
             Path.Combine(_path, "OpenProject.Revit.dll"),
             "OpenProject.Revit.Entry.CmdMain"));
 
@@ -45,7 +53,7 @@ namespace OpenProject.Revit.Entry
         {
           browserButton.Image = LoadPngImgSource("OpenProject.Revit.Assets.CM__16.png");
           browserButton.LargeImage = LoadPngImgSource("OpenProject.Revit.Assets.CM__32.png");
-          browserButton.ToolTip = "CMProyectos browser";
+          browserButton.ToolTip = "Cmcoordinator browser";
         }
 
         RibbonItem settingsButtonItem = panel.AddItem(
@@ -58,8 +66,20 @@ namespace OpenProject.Revit.Entry
         {
           settingsButton.Image = LoadPngImgSource("OpenProject.Revit.Assets.Settings32.png");
           settingsButton.LargeImage = LoadPngImgSource("OpenProject.Revit.Assets.Settings32.png");
-          settingsButton.ToolTip = "CMProyectos Revit Add-in settings";
+          settingsButton.ToolTip = "Cmcoordinator Revit Add-in settings";
         }
+
+        var livePanel = application.CreateRibbonPanel(tabName, "Visor local");
+        var liveButton = livePanel.AddItem(new PushButtonData("LocalLiveSync", "Iniciar\nvisor local",
+          assemblyPath, "OpenProject.Revit.Entry.CmdLocalLiveSync")) as PushButton;
+        LocalLiveSync.Initialize(application, liveButton);
+        livePanel.AddItem(new PushButtonData("LocalLiveCube", "Cubo demo\n1 m", assemblyPath,
+          "OpenProject.Revit.Entry.CmdLiveDemoCube")).ToolTip = "Crear un cubo de prueba en el modelo (se puede deshacer)";
+
+        // Dockable pins pane
+        var pinsView = new PinsPaneView();
+        var paneProvider = new PinsDockablePaneProvider(pinsView);
+        application.RegisterDockablePane(PinsPaneManager.PaneId, "Centro CDE para gestión del modelo", paneProvider);
       }
       catch (Exception exception)
       {
@@ -79,7 +99,9 @@ namespace OpenProject.Revit.Entry
     {
       try
       {
-        RibbonButtonClickHandler.IpcHandler?.SendShutdownRequestToDesktopApp();
+        LocalLiveSync.Shutdown();
+        RevitBridgeClient.Stop();
+        RibbonButtonClickHandler.CloseBrowserIfRunning();
       }
       catch
       {

@@ -112,11 +112,7 @@ namespace OpenProject.Revit.Data
     /// <returns></returns>
     public static double ToMeters(this double internalUnits)
     {
-#if Version2021 || Version2022||Version2024||Version2025||Version2026
-      return UnitUtils.ConvertFromInternalUnits(internalUnits, UnitTypeId.Meters);
-#else
-      return UnitUtils.ConvertFromInternalUnits(internalUnits, DisplayUnitType.DUT_METERS);
-#endif
+return UnitUtils.ConvertFromInternalUnits(internalUnits, UnitTypeId.Meters);
     }
 
     /// <summary>
@@ -126,11 +122,7 @@ namespace OpenProject.Revit.Data
     /// <returns></returns>
     public static double ToInternalRevitUnit(this double meters)
     {
-#if Version2021 || Version2022||Version2024||Version2025||Version2026
-      return UnitUtils.ConvertToInternalUnits(meters, UnitTypeId.Meters);
-#else
-      return UnitUtils.ConvertToInternalUnits(meters, DisplayUnitType.DUT_METERS);
-#endif
+return UnitUtils.ConvertToInternalUnits(meters, UnitTypeId.Meters);
     }
 
     /// <summary>

@@ -1,177 +1,274 @@
-;defining variables
-#define Repository     "..\."
-#define MyAppName      "CMProyectos"
-#define MyAppVersion GetFileVersion("..\output\OpenProject.Browser\OpenProject.Browser.exe")
-#define MyAppPublisher "CMProyectos"
-#define MyAppURL       "http://www.openproject.org/"
-#define MyAppExeName   "CMProyectos.Revit.exe"
+#define RepoRoot ".."
+#define AppName "Cmcoordinator Revit Add-in"
+#define AppPublisher "Cmcoordinator"
+#define AddinName "Cmcoordinator"
+#define BuildStamp GetDateTimeString('yyyymmdd-hhnnss', '-', ':')
+#define BrowserBinariesSource "..\src\OpenProject.Browser\bin\x64\Debug-2026\net48\*"
+#define AddinManifestSource "..\src\OpenProject.Revit\Cmcoordinator.addin"
+#define AppIdValue "{{D22B2A9A-2C49-4C3A-8F8B-6AC9A2E6A026}"
+#define UninstallRegKey "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{D22B2A9A-2C49-4C3A-8F8B-6AC9A2E6A026}_is1"
 
-#define RevitAppName  "OpenProject.Revit"
-#define RevitAddinFolder "{sd}\ProgramData\Autodesk\Revit\Addins"
-#define RevitFolder19 RevitAddinFolder+"\2019\"+RevitAppName
-#define RevitAddin19  RevitAddinFolder+"\2019\"
-#define RevitFolder20 RevitAddinFolder+"\2020\"+RevitAppName
-#define RevitAddin20  RevitAddinFolder+"\2020\"
-#define RevitFolder21 RevitAddinFolder+"\2021\"+RevitAppName
-#define RevitAddin21  RevitAddinFolder+"\2021\"
-#define RevitFolder22 RevitAddinFolder+"\2022\"+RevitAppName
-#define RevitAddin22  RevitAddinFolder+"\2022\"
-#define RevitFolder24 RevitAddinFolder+"\2024\"+RevitAppName
-#define RevitAddin24  RevitAddinFolder+"\2024\"
-#define RevitFolder25 RevitAddinFolder+"\2025\"+RevitAppName
-#define RevitAddin25  RevitAddinFolder+"\2025\"
-#define RevitFolder26 RevitAddinFolder+"\2026\"+RevitAppName
-#define RevitAddin26  RevitAddinFolder+"\2026\"
-
-
-#define WinAppName    "OpenProject.Browser"
-
+#if FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2019\net472\OpenProject.Revit.dll")
+  #define HasRevit2019
+  #define AppVersion GetVersionNumbersString("..\src\OpenProject.Revit\bin\x64\Debug-2019\net472\OpenProject.Revit.dll")
+#endif
+#if !Defined(AppVersion) && FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2020\net472\OpenProject.Revit.dll")
+  #define HasRevit2020
+  #define AppVersion GetVersionNumbersString("..\src\OpenProject.Revit\bin\x64\Debug-2020\net472\OpenProject.Revit.dll")
+#endif
+#if FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2020\net472\OpenProject.Revit.dll")
+  #define HasRevit2020
+#endif
+#if FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2021\net48\OpenProject.Revit.dll")
+  #define HasRevit2021
+  #if !Defined(AppVersion)
+    #define AppVersion GetVersionNumbersString("..\src\OpenProject.Revit\bin\x64\Debug-2021\net48\OpenProject.Revit.dll")
+  #endif
+#endif
+#if FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2022\net48\OpenProject.Revit.dll")
+  #define HasRevit2022
+  #if !Defined(AppVersion)
+    #define AppVersion GetVersionNumbersString("..\src\OpenProject.Revit\bin\x64\Debug-2022\net48\OpenProject.Revit.dll")
+  #endif
+#endif
+#if FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2024\net48\OpenProject.Revit.dll")
+  #define HasRevit2024
+  #if !Defined(AppVersion)
+    #define AppVersion GetVersionNumbersString("..\src\OpenProject.Revit\bin\x64\Debug-2024\net48\OpenProject.Revit.dll")
+  #endif
+#endif
+#if FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2025\net8.0-windows\OpenProject.Revit.dll")
+  #define HasRevit2025
+  #if !Defined(AppVersion)
+    #define AppVersion GetVersionNumbersString("..\src\OpenProject.Revit\bin\x64\Debug-2025\net8.0-windows\OpenProject.Revit.dll")
+  #endif
+#endif
+#if FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2027\net10.0-windows7.0\OpenProject.Revit.dll")
+  #define HasRevit2027
+  #undef AppVersion
+  #define AppVersion GetVersionNumbersString("..\src\OpenProject.Revit\bin\x64\Debug-2027\net10.0-windows7.0\OpenProject.Revit.dll")
+#endif
+#if FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2026\net8.0-windows\OpenProject.Revit.dll")
+  #define HasRevit2026
+  #undef AppVersion
+  #define AppVersion GetVersionNumbersString("..\src\OpenProject.Revit\bin\x64\Debug-2026\net8.0-windows\OpenProject.Revit.dll")
+#endif
+#if !Defined(AppVersion)
+  #error No se encontraron binarios de OpenProject.Revit para crear el instalador.
+#endif
 [Setup]
-AppId={{5f96a79f-0e28-4d02-be10-251c8032a270}
-AppName={#MyAppName}
-AppVersion={#MyAppVersion}
-AppVerName={#MyAppName} {#MyAppVersion}
-AppPublisher={#MyAppPublisher}
-AppPublisherURL={#MyAppURL}
-AppSupportURL={#MyAppURL}
-AppUpdatesURL={#MyAppURL}
-DefaultDirName={pf64}\{#MyAppName}
+AppId={#AppIdValue}
+AppName={#AppName}
+AppVersion={#AppVersion}
+AppVerName={#AppName} {#AppVersion}
+AppPublisher={#AppPublisher}
+DefaultDirName={commonappdata}\Autodesk\Revit\Addins
 DisableDirPage=yes
-DefaultGroupName={#MyAppName}
+DirExistsWarning=no
 DisableProgramGroupPage=yes
+DisableReadyMemo=no
 DisableWelcomePage=no
-OutputDir={#Repository}\output
-OutputBaseFilename=OpenProject.Revit
-SetupIconFile={#Repository}\Assets\CMicon.ico
+OutputDir={#RepoRoot}\output\installer
+OutputBaseFilename=Cmcoordinator-Revit-Addin-Setup-{#BuildStamp}
+SetupIconFile={#RepoRoot}\Assets\CMicon.ico
+WizardImageFile={#RepoRoot}\Assets\Cmcoordinator_LOGO.bmp
 Compression=lzma
 SolidCompression=yes
-WizardImageFile={#Repository}\Assets\CMPROYECTOS_LOGO.bmp
-ChangesAssociations=yes
+PrivilegesRequired=admin
+ArchitecturesInstallIn64BitMode=x64compatible
+UninstallDisplayIcon={uninstallexe}
+CloseApplications=no
+UsePreviousAppDir=no
 
 [Languages]
-Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
 
 [Components]
-Name: revit19; Description: Addin for Autodesk Revit 2019;  Types: full
-Name: revit20; Description: Addin for Autodesk Revit 2020;  Types: full
-Name: revit21; Description: Addin for Autodesk Revit 2021;  Types: full
-Name: revit22; Description: Addin for Autodesk Revit 2022;  Types: full
-Name: revit24; Description: Addin for Autodesk Revit 2024;  Types: full
-Name: revit25; Description: Addin for Autodesk Revit 2025;  Types: full
-Name: revit26; Description: Addin for Autodesk Revit 2026;  Types: full
+#if Defined(HasRevit2019)
+Name: "revit2019"; Description: "Autodesk Revit 2019"; Flags: disablenouninstallwarning
+#endif
+#if Defined(HasRevit2020)
+Name: "revit2020"; Description: "Autodesk Revit 2020"; Flags: disablenouninstallwarning
+#endif
+#if Defined(HasRevit2021)
+Name: "revit2021"; Description: "Autodesk Revit 2021"; Flags: disablenouninstallwarning
+#endif
+#if Defined(HasRevit2022)
+Name: "revit2022"; Description: "Autodesk Revit 2022"; Flags: disablenouninstallwarning
+#endif
+#if Defined(HasRevit2024)
+Name: "revit2024"; Description: "Autodesk Revit 2024"; Flags: disablenouninstallwarning
+#endif
+#if Defined(HasRevit2025)
+Name: "revit2025"; Description: "Autodesk Revit 2025"; Flags: disablenouninstallwarning
+#endif
+#if Defined(HasRevit2027)
+Name: "revit2027"; Description: "Autodesk Revit 2027"; Flags: disablenouninstallwarning
+#endif
+#if Defined(HasRevit2026)
+Name: "revit2026"; Description: "Autodesk Revit 2026"; Flags: disablenouninstallwarning
+#endif
+
+[Dirs]
+#if Defined(HasRevit2019)
+Name: "{app}\2019\{#AddinName}"; Components: revit2019
+Name: "{app}\2019\{#AddinName}\OpenProject.Browser"; Components: revit2019
+#endif
+#if Defined(HasRevit2020)
+Name: "{app}\2020\{#AddinName}"; Components: revit2020
+Name: "{app}\2020\{#AddinName}\OpenProject.Browser"; Components: revit2020
+#endif
+#if Defined(HasRevit2021)
+Name: "{app}\2021\{#AddinName}"; Components: revit2021
+Name: "{app}\2021\{#AddinName}\OpenProject.Browser"; Components: revit2021
+#endif
+#if Defined(HasRevit2022)
+Name: "{code:GetPluginTargetForYear|2022}"; Components: revit2022
+Name: "{code:GetBrowserTargetForYear|2022}"; Components: revit2022
+#endif
+#if Defined(HasRevit2024)
+Name: "{code:GetPluginTargetForYear|2024}"; Components: revit2024
+Name: "{code:GetBrowserTargetForYear|2024}"; Components: revit2024
+#endif
+#if Defined(HasRevit2025)
+Name: "{code:GetPluginTargetForYear|2025}"; Components: revit2025
+Name: "{code:GetBrowserTargetForYear|2025}"; Components: revit2025
+#endif
+#if Defined(HasRevit2027)
+Name: "{code:GetPluginTargetForYear|2027}"; Components: revit2027
+Name: "{code:GetBrowserTargetForYear|2027}"; Components: revit2027
+#endif
+#if Defined(HasRevit2026)
+Name: "{code:GetPluginTargetForYear|2026}"; Components: revit2026
+Name: "{code:GetBrowserTargetForYear|2026}"; Components: revit2026
+#endif
 
 [Files]
+#if Defined(HasRevit2019)
+Source: "..\src\OpenProject.Revit\Cmcoordinator.addin"; DestDir: "{app}\2019"; DestName: "{#AddinName}.addin"; Flags: ignoreversion; Components: revit2019
+Source: "..\src\OpenProject.Revit\bin\x64\Debug-2019\net472\*"; DestDir: "{app}\2019\{#AddinName}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: revit2019
+Source: "{#BrowserBinariesSource}"; DestDir: "{app}\2019\{#AddinName}\OpenProject.Browser"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: revit2019
+#endif
+#if Defined(HasRevit2020)
+Source: "..\src\OpenProject.Revit\Cmcoordinator.addin"; DestDir: "{app}\2020"; DestName: "{#AddinName}.addin"; Flags: ignoreversion; Components: revit2020
+Source: "..\src\OpenProject.Revit\bin\x64\Debug-2020\net472\*"; DestDir: "{app}\2020\{#AddinName}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: revit2020
+Source: "{#BrowserBinariesSource}"; DestDir: "{app}\2020\{#AddinName}\OpenProject.Browser"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: revit2020
+#endif
+#if Defined(HasRevit2021)
+Source: "..\src\OpenProject.Revit\Cmcoordinator.addin"; DestDir: "{app}\2021"; DestName: "{#AddinName}.addin"; Flags: ignoreversion; Components: revit2021
+Source: "..\src\OpenProject.Revit\bin\x64\Debug-2021\net48\*"; DestDir: "{app}\2021\{#AddinName}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: revit2021
+Source: "{#BrowserBinariesSource}"; DestDir: "{app}\2021\{#AddinName}\OpenProject.Browser"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: revit2021
+#endif
+#if Defined(HasRevit2022)
+Source: "..\src\OpenProject.Revit\Cmcoordinator.addin"; DestDir: "{code:GetInstallTargetForYear|2022}"; DestName: "{#AddinName}.addin"; Flags: ignoreversion; Components: revit2022
+Source: "..\src\OpenProject.Revit\bin\x64\Debug-2022\net48\*"; DestDir: "{code:GetPluginTargetForYear|2022}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: revit2022
+Source: "{#BrowserBinariesSource}"; DestDir: "{code:GetBrowserTargetForYear|2022}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: revit2022
+#endif
+#if Defined(HasRevit2024)
+Source: "..\src\OpenProject.Revit\Cmcoordinator.addin"; DestDir: "{code:GetInstallTargetForYear|2024}"; DestName: "{#AddinName}.addin"; Flags: ignoreversion; Components: revit2024
+Source: "..\src\OpenProject.Revit\bin\x64\Debug-2024\net48\*"; DestDir: "{code:GetPluginTargetForYear|2024}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: revit2024
+Source: "{#BrowserBinariesSource}"; DestDir: "{code:GetBrowserTargetForYear|2024}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: revit2024
+#endif
+#if Defined(HasRevit2025)
+Source: "..\src\OpenProject.Revit\Cmcoordinator.addin"; DestDir: "{code:GetInstallTargetForYear|2025}"; DestName: "{#AddinName}.addin"; Flags: ignoreversion; Components: revit2025
+Source: "..\src\OpenProject.Revit\bin\x64\Debug-2025\net8.0-windows\*"; DestDir: "{code:GetPluginTargetForYear|2025}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: revit2025
+Source: "{#BrowserBinariesSource}"; DestDir: "{code:GetBrowserTargetForYear|2025}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: revit2025
+#endif
+#if Defined(HasRevit2027)
+Source: "..\src\OpenProject.Revit\Cmcoordinator.addin"; DestDir: "{code:GetInstallTargetForYear|2027}"; DestName: "{#AddinName}.addin"; Flags: ignoreversion; Components: revit2027
+Source: "..\src\OpenProject.Revit\bin\x64\Debug-2027\net10.0-windows7.0\*"; DestDir: "{code:GetPluginTargetForYear|2027}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: revit2027
+Source: "{#BrowserBinariesSource}"; DestDir: "{code:GetBrowserTargetForYear|2027}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: revit2027
+#endif
+#if Defined(HasRevit2026)
+Source: "..\src\OpenProject.Revit\Cmcoordinator.addin"; DestDir: "{code:GetInstallTargetForYear|2026}"; DestName: "{#AddinName}.addin"; Flags: ignoreversion; Components: revit2026
+Source: "..\src\OpenProject.Revit\bin\x64\Debug-2026\net8.0-windows\*"; DestDir: "{code:GetPluginTargetForYear|2026}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: revit2026
+Source: "{#BrowserBinariesSource}"; DestDir: "{code:GetBrowserTargetForYear|2026}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: revit2026
+#endif
 
-;REVIT 2019                                                                                                                                    
-Source: "{#Repository}\output\{#RevitAppName}\Release-2019\*"; DestDir: "{#RevitFolder19}"; Flags: ignoreversion recursesubdirs; Components: revit19 
-Source: "{#Repository}\output\{#RevitAppName}\Release-2019\*.addin"; DestDir: "{#RevitAddin19}"; Flags: ignoreversion; Components: revit19
-Source: "{#Repository}\output\OpenProject.Browser\*"; DestDir: "{#RevitFolder19}\OpenProject.Browser\"; Flags: ignoreversion recursesubdirs; Components: revit19 
+[InstallDelete]
+#if Defined(HasRevit2019)
+Type: files; Name: "{userappdata}\Autodesk\REVIT\Addins\2019\{#AddinName}.addin"; Components: revit2019
+Type: filesandordirs; Name: "{userappdata}\Autodesk\REVIT\Addins\2019\{#AddinName}"; Components: revit2019
+#endif
+#if Defined(HasRevit2020)
+Type: files; Name: "{userappdata}\Autodesk\REVIT\Addins\2020\{#AddinName}.addin"; Components: revit2020
+Type: filesandordirs; Name: "{userappdata}\Autodesk\REVIT\Addins\2020\{#AddinName}"; Components: revit2020
+#endif
+#if Defined(HasRevit2021)
+Type: files; Name: "{userappdata}\Autodesk\REVIT\Addins\2021\{#AddinName}.addin"; Components: revit2021
+Type: filesandordirs; Name: "{userappdata}\Autodesk\REVIT\Addins\2021\{#AddinName}"; Components: revit2021
+#endif
+#if Defined(HasRevit2022)
+Type: files; Name: "{userappdata}\Autodesk\REVIT\Addins\2022\{#AddinName}.addin"; Components: revit2022
+Type: filesandordirs; Name: "{userappdata}\Autodesk\REVIT\Addins\2022\{#AddinName}"; Components: revit2022
+#endif
+#if Defined(HasRevit2024)
+Type: files; Name: "{userappdata}\Autodesk\REVIT\Addins\2024\{#AddinName}.addin"; Components: revit2024
+Type: filesandordirs; Name: "{userappdata}\Autodesk\REVIT\Addins\2024\{#AddinName}"; Components: revit2024
+#endif
+#if Defined(HasRevit2025)
+Type: files; Name: "{userappdata}\Autodesk\REVIT\Addins\2025\{#AddinName}.addin"; Components: revit2025
+Type: filesandordirs; Name: "{userappdata}\Autodesk\REVIT\Addins\2025\{#AddinName}"; Components: revit2025
+#endif
+#if Defined(HasRevit2027)
+Type: files; Name: "{userappdata}\Autodesk\REVIT\Addins\2027\{#AddinName}.addin"; Components: revit2027
+Type: filesandordirs; Name: "{userappdata}\Autodesk\REVIT\Addins\2027\{#AddinName}"; Components: revit2027
+#endif
+#if Defined(HasRevit2026)
+Type: files; Name: "{userappdata}\Autodesk\REVIT\Addins\2026\{#AddinName}.addin"; Components: revit2026
+Type: filesandordirs; Name: "{userappdata}\Autodesk\REVIT\Addins\2026\{#AddinName}"; Components: revit2026
+#endif
 
-;REVIT 2020                                                                                                                                    
-Source: "{#Repository}\output\{#RevitAppName}\Release-2020\*"; DestDir: "{#RevitFolder20}"; Flags: ignoreversion recursesubdirs; Components: revit20 
-Source: "{#Repository}\output\{#RevitAppName}\Release-2020\*.addin"; DestDir: "{#RevitAddin20}"; Flags: ignoreversion; Components: revit20
-Source: "{#Repository}\output\OpenProject.Browser\*"; DestDir: "{#RevitFolder20}\OpenProject.Browser\"; Flags: ignoreversion recursesubdirs; Components: revit20 
+[UninstallDelete]
+#if Defined(HasRevit2019)
+Type: files; Name: "{app}\2019\{#AddinName}.addin"; Components: revit2019
+Type: filesandordirs; Name: "{app}\2019\{#AddinName}"; Components: revit2019
+Type: files; Name: "{userappdata}\Autodesk\REVIT\Addins\2019\{#AddinName}.addin"; Components: revit2019
+Type: filesandordirs; Name: "{userappdata}\Autodesk\REVIT\Addins\2019\{#AddinName}"; Components: revit2019
+#endif
+#if Defined(HasRevit2020)
+Type: files; Name: "{app}\2020\{#AddinName}.addin"; Components: revit2020
+Type: filesandordirs; Name: "{app}\2020\{#AddinName}"; Components: revit2020
+Type: files; Name: "{userappdata}\Autodesk\REVIT\Addins\2020\{#AddinName}.addin"; Components: revit2020
+Type: filesandordirs; Name: "{userappdata}\Autodesk\REVIT\Addins\2020\{#AddinName}"; Components: revit2020
+#endif
+#if Defined(HasRevit2021)
+Type: files; Name: "{app}\2021\{#AddinName}.addin"; Components: revit2021
+Type: filesandordirs; Name: "{app}\2021\{#AddinName}"; Components: revit2021
+Type: files; Name: "{userappdata}\Autodesk\REVIT\Addins\2021\{#AddinName}.addin"; Components: revit2021
+Type: filesandordirs; Name: "{userappdata}\Autodesk\REVIT\Addins\2021\{#AddinName}"; Components: revit2021
+#endif
+#if Defined(HasRevit2022)
+Type: files; Name: "{app}\2022\{#AddinName}.addin"; Components: revit2022
+Type: filesandordirs; Name: "{app}\2022\{#AddinName}"; Components: revit2022
+Type: files; Name: "{userappdata}\Autodesk\REVIT\Addins\2022\{#AddinName}.addin"; Components: revit2022
+Type: filesandordirs; Name: "{userappdata}\Autodesk\REVIT\Addins\2022\{#AddinName}"; Components: revit2022
+#endif
+#if Defined(HasRevit2024)
+Type: files; Name: "{app}\2024\{#AddinName}.addin"; Components: revit2024
+Type: filesandordirs; Name: "{app}\2024\{#AddinName}"; Components: revit2024
+Type: files; Name: "{userappdata}\Autodesk\REVIT\Addins\2024\{#AddinName}.addin"; Components: revit2024
+Type: filesandordirs; Name: "{userappdata}\Autodesk\REVIT\Addins\2024\{#AddinName}"; Components: revit2024
+#endif
+#if Defined(HasRevit2025)
+Type: files; Name: "{app}\2025\{#AddinName}.addin"; Components: revit2025
+Type: filesandordirs; Name: "{app}\2025\{#AddinName}"; Components: revit2025
+Type: files; Name: "{userappdata}\Autodesk\REVIT\Addins\2025\{#AddinName}.addin"; Components: revit2025
+Type: filesandordirs; Name: "{userappdata}\Autodesk\REVIT\Addins\2025\{#AddinName}"; Components: revit2025
+#endif
+#if Defined(HasRevit2027)
+Type: files; Name: "{commonpf64}\Autodesk\Revit\Addins\2027\{#AddinName}.addin"; Components: revit2027
+Type: filesandordirs; Name: "{commonpf64}\Autodesk\Revit\Addins\2027\{#AddinName}"; Components: revit2027
+Type: files; Name: "{userappdata}\Autodesk\REVIT\Addins\2027\{#AddinName}.addin"; Components: revit2027
+Type: filesandordirs; Name: "{userappdata}\Autodesk\REVIT\Addins\2027\{#AddinName}"; Components: revit2027
+#endif
+#if Defined(HasRevit2026)
+Type: files; Name: "{app}\2026\{#AddinName}.addin"; Components: revit2026
+Type: filesandordirs; Name: "{app}\2026\{#AddinName}"; Components: revit2026
+Type: files; Name: "{userappdata}\Autodesk\REVIT\Addins\2026\{#AddinName}.addin"; Components: revit2026
+Type: filesandordirs; Name: "{userappdata}\Autodesk\REVIT\Addins\2026\{#AddinName}"; Components: revit2026
+#endif
 
-;REVIT 2021                                                                                                                                    
-Source: "{#Repository}\output\{#RevitAppName}\Release-2021\*"; DestDir: "{#RevitFolder21}"; Flags: ignoreversion recursesubdirs; Components: revit21 
-Source: "{#Repository}\output\{#RevitAppName}\Release-2021\*.addin"; DestDir: "{#RevitAddin21}"; Flags: ignoreversion; Components: revit21
-Source: "{#Repository}\output\OpenProject.Browser\*"; DestDir: "{#RevitFolder21}\OpenProject.Browser\"; Flags: ignoreversion recursesubdirs; Components: revit21
- 
-;REVIT 2022                                                                                                                                    
-Source: "{#Repository}\output\{#RevitAppName}\Release-2022\*"; DestDir: "{#RevitFolder22}"; Flags: ignoreversion recursesubdirs; Components: revit22 
-Source: "{#Repository}\output\{#RevitAppName}\Release-2022\*.addin"; DestDir: "{#RevitAddin22}"; Flags: ignoreversion; Components: revit22
-Source: "{#Repository}\output\OpenProject.Browser\*"; DestDir: "{#RevitFolder22}\OpenProject.Browser\"; Flags: ignoreversion recursesubdirs; Components: revit22 
-
-;REVIT 2024                                                                                                                                    
-Source: "{#Repository}\output\{#RevitAppName}\Release-2024\*"; DestDir: "{#RevitFolder24}"; Flags: ignoreversion recursesubdirs; Components: revit24 
-Source: "{#Repository}\output\{#RevitAppName}\Release-2024\*.addin"; DestDir: "{#RevitAddin24}"; Flags: ignoreversion; Components: revit24
-Source: "{#Repository}\output\OpenProject.Browser\*"; DestDir: "{#RevitFolder24}\OpenProject.Browser\"; Flags: ignoreversion recursesubdirs; Components: revit24 
-
-;REVIT 2025                                                                                                                                    
-Source: "{#Repository}\output\{#RevitAppName}\Release-2025\*"; DestDir: "{#RevitFolder25}"; Flags: ignoreversion recursesubdirs; Components: revit25 
-Source: "{#Repository}\output\{#RevitAppName}\Release-2025\*.addin"; DestDir: "{#RevitAddin25}"; Flags: ignoreversion; Components: revit25
-Source: "{#Repository}\output\OpenProject.Browser\*"; DestDir: "{#RevitFolder25}\OpenProject.Browser\"; Flags: ignoreversion recursesubdirs; Components: revit25 
-
-;REVIT 2026                                                                                                                                    
-Source: "{#Repository}\output\{#RevitAppName}\Release-2026\*"; DestDir: "{#RevitFolder26}"; Flags: ignoreversion recursesubdirs; Components: revit26 
-Source: "{#Repository}\output\{#RevitAppName}\Release-2026\*.addin"; DestDir: "{#RevitAddin26}"; Flags: ignoreversion; Components: revit26
-Source: "{#Repository}\output\OpenProject.Browser\*"; DestDir: "{#RevitFolder26}\OpenProject.Browser\"; Flags: ignoreversion recursesubdirs; Components: revit26 
-
-
-[Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
-
-;checks if minimun requirements are met
 [Code]
-function IsDotNetDetected(version: string; service: cardinal): boolean;
-// Indicates whether the specified version and service pack of the .NET Framework is installed.
-//
-// version -- Specify one of these strings for the required .NET Framework version:
-//    'v1.1.4322'     .NET Framework 1.1
-//    'v2.0.50727'    .NET Framework 2.0
-//    'v3.0'          .NET Framework 3.0
-//    'v3.5'          .NET Framework 3.5
-//    'v4\Client'     .NET Framework 4.0 Client Profile
-//    'v4\Full'       .NET Framework 4.0 Full Installation
-//    'v4.5'          .NET Framework 4.5
-//
-// service -- Specify any non-negative integer for the required service pack level:
-//    0               No service packs required
-//    1, 2, etc.      Service pack 1, 2, etc. required
-var
-    key: string;
-    install, release, serviceCount: cardinal;
-    check45, success: boolean;
-begin
-    // .NET 4.5 installs as update to .NET 4.0 Full
-    if version = 'v4.5' then begin
-        version := 'v4\Full';
-        check45 := true;
-    end else
-        check45 := false;
-
-    // installation key group for all .NET versions
-    key := 'SOFTWARE\Microsoft\NET Framework Setup\NDP\' + version;
-
-    // .NET 3.0 uses value InstallSuccess in subkey Setup
-    if Pos('v3.0', version) = 1 then begin
-        success := RegQueryDWordValue(HKLM, key + '\Setup', 'InstallSuccess', install);
-    end else begin
-        success := RegQueryDWordValue(HKLM, key, 'Install', install);
-    end;
-
-    // .NET 4.0/4.5 uses value Servicing instead of SP
-    if Pos('v4', version) = 1 then begin
-        success := success and RegQueryDWordValue(HKLM, key, 'Servicing', serviceCount);
-    end else begin
-        success := success and RegQueryDWordValue(HKLM, key, 'SP', serviceCount);
-    end;
-
-    // .NET 4.5 uses additional value Release
-    if check45 then begin
-        success := success and RegQueryDWordValue(HKLM, key, 'Release', release);
-        success := success and (release >= 378389);
-    end;
-
-    result := success and (install = 1) and (serviceCount >= service);
-end;
-
-//Revit 2017/18 need 4.6, should update?
-function InitializeSetup(): Boolean;
-var
-  ErrCode: integer;
-begin
-    if not IsDotNetDetected('v4.5', 0) then begin
-      if  MsgBox('{#MyAppName} requires Microsoft .NET Framework 4.5.'#13#13
-            'Do you want me to open http://www.microsoft.com/net'#13
-            'so you can download it?',  mbConfirmation, MB_YESNO) = IDYES
-            then begin
-              ShellExec('open', 'http://www.microsoft.com/net',
-                '', '', SW_SHOW, ewNoWait, ErrCode);
-      end;
-  
-         result := false;
-    end else
-        result := true;
-end;
+#include "Code/DetectionAndOperations.iss"
+#include "Code/WizardLifecycle.iss"

@@ -13,16 +13,17 @@ namespace OpenProject.Browser.ViewModels
     private readonly JavaScriptBridge _javaScriptBridge;
     private readonly IGitHubService _gitHubService;
     private readonly BrowserManager _browserManager;
+    private readonly PinsService _pinsService;
 
     public ChromiumWebBrowser Browser => _browserManager.Browser;
 
-    public WebViewModel(IGitHubService gitHubService, BrowserManager browserManager, JavaScriptBridge javaScriptBridge)
+    public WebViewModel(IGitHubService gitHubService, BrowserManager browserManager, JavaScriptBridge javaScriptBridge, PinsService pinsService)
     {
       _gitHubService = gitHubService;
       _browserManager = browserManager;
       _javaScriptBridge = javaScriptBridge;
+      _pinsService = pinsService;
 
-      ConfigurationHandler.Settings.EnableDevelopmentTools = false;
       _browserManager.Initialize();
       InitializeIpcConnection();
       CheckForUpdates();
@@ -39,7 +40,7 @@ namespace OpenProject.Browser.ViewModels
 
       var serverPort = int.Parse(args[0]);
       var clientPort = int.Parse(args[1]);
-      IpcManager.StartIpcCommunication(_javaScriptBridge, serverPort, clientPort);
+      IpcManager.StartIpcCommunication(_javaScriptBridge, _pinsService, serverPort, clientPort);
     }
 
     private void CheckForUpdates()

@@ -1,0 +1,144 @@
+<Window x:Class="OpenProject.Revit.Views.McpSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Settings"
+        Width="700"
+        Height="460"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize">
+  <Grid Margin="12">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="160"/>
+      <ColumnDefinition Width="*"/>
+    </Grid.ColumnDefinitions>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <Border Grid.Row="0" Grid.Column="0" BorderBrush="#DDDDDD" BorderThickness="1" Margin="0,0,12,0">
+      <ListBox x:Name="SectionList"
+               BorderThickness="0"
+               SelectionChanged="OnSectionChanged">
+        <ListBoxItem Content="Conexion"/>
+        <ListBoxItem Content="Visibilidad"/>
+        <ListBoxItem Content="Agente IA"/>
+      </ListBox>
+    </Border>
+
+    <Grid Grid.Row="0" Grid.Column="1">
+      <StackPanel x:Name="ConnectionPanel">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+
+          <TextBlock Grid.Row="0" Grid.Column="0" Text="URL" Margin="0,0,8,8" VerticalAlignment="Center"/>
+          <TextBox x:Name="UrlTextBox"
+                   Grid.Row="0"
+                   Grid.Column="1"
+                   Grid.ColumnSpan="2"
+                   Margin="0,0,0,8"
+                   IsReadOnly="True"
+                   Background="#F3F3F3"/>
+
+          <TextBlock Grid.Row="1" Grid.Column="0" Text="Api Token" Margin="0,0,8,8" VerticalAlignment="Center"/>
+          <PasswordBox x:Name="ApiTokenBox" Grid.Row="1" Grid.Column="1" Margin="0,0,8,8"/>
+
+          <Button Grid.Row="1"
+                  Grid.Column="2"
+                  x:Name="ConnectionStateButton"
+                  Content="Desconectado"
+                  Width="120"
+                  HorizontalAlignment="Right"
+                  Margin="0,0,0,8"
+                  Click="OnConnectionStateClick"
+                  Foreground="White"
+                  Background="#757575"/>
+        </Grid>
+
+        <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" Foreground="#666666">
+          Guarda la conexion y valida acceso al API v3 con Api Token.
+        </TextBlock>
+      </StackPanel>
+
+      <StackPanel x:Name="VisibilityPanel" Visibility="Collapsed">
+        <TextBlock Text="Columnas visibles en el panel Centro CDE" Margin="0,0,0,8" Foreground="#555555"/>
+        <ItemsControl x:Name="ColumnsItemsControl">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <CheckBox Content="{Binding DisplayName}" IsChecked="{Binding IsChecked}" Margin="0,2"/>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <TextBlock Text="Actualizacion automatica" Margin="0,12,0,6" Foreground="#555555" FontWeight="Bold"/>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <CheckBox x:Name="AutoRefreshCheckBox" Content="Actualizacion" Margin="0,0,12,0" VerticalAlignment="Center"/>
+          <TextBox x:Name="AutoRefreshValueTextBox" Width="60" Margin="0,0,8,0" VerticalContentAlignment="Center"/>
+          <ComboBox x:Name="AutoRefreshUnitComboBox" Width="100" SelectedIndex="1">
+            <ComboBoxItem Content="Segundo"/>
+            <ComboBoxItem Content="Minuto"/>
+            <ComboBoxItem Content="Hora"/>
+          </ComboBox>
+        </StackPanel>
+
+        <TextBlock Text="Herramientas de desarrollo" Margin="0,12,0,6" Foreground="#555555" FontWeight="Bold"/>
+        <CheckBox x:Name="DevToolsCheckBox" Content="Abrir devtools modo desarrollo" Margin="0,0,0,4"/>
+      </StackPanel>
+
+      <StackPanel x:Name="AiAgentPanel" Visibility="Collapsed">
+        <CheckBox x:Name="AiEnabledCheckBox" Content="Habilitar puente IA" Margin="0,0,0,8"/>
+        <CheckBox x:Name="AiAutoConnectCheckBox" Content="Conectar automaticamente al iniciar Revit" Margin="0,0,0,12"/>
+
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+          </Grid.ColumnDefinitions>
+
+          <TextBlock Grid.Row="0" Grid.Column="0" Text="Bridge URL" Margin="0,0,8,8" VerticalAlignment="Center"/>
+          <TextBox x:Name="AiBridgeUrlTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8"/>
+
+          <TextBlock Grid.Row="1" Grid.Column="0" Text="Workstation ID" Margin="0,0,8,8" VerticalAlignment="Center"/>
+          <TextBox x:Name="AiWorkstationIdTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8"/>
+
+          <TextBlock Grid.Row="2" Grid.Column="0" Text="Bridge Token" Margin="0,0,8,8" VerticalAlignment="Center"/>
+          <PasswordBox x:Name="AiBridgeTokenBox" Grid.Row="2" Grid.Column="1" Margin="0,0,0,8"/>
+
+          <TextBlock Grid.Row="3" Grid.Column="0" Text="Agent ID" Margin="0,0,8,8" VerticalAlignment="Center"/>
+          <TextBox x:Name="AiAgentIdTextBox" Grid.Row="3" Grid.Column="1" Margin="0,0,0,8"/>
+
+          <Button Grid.Row="4"
+                  Grid.Column="1"
+                  Content="Probar conexion"
+                  Width="130"
+                  HorizontalAlignment="Left"
+                  Click="OnTestAiConnectionClick"/>
+        </Grid>
+
+        <TextBlock Margin="0,10,0,0" TextWrapping="Wrap" Foreground="#666666">
+          Usa wss://tu-dominio/revit-bridge y un Workstation ID unico por equipo Revit.
+        </TextBlock>
+      </StackPanel>
+    </Grid>
+
+    <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+      <Button x:Name="ConnectButton" Content="Guardar" Width="90" Margin="0,0,8,0" Click="OnConnectClick"/>
+      <Button Content="Cerrar" Width="90" Click="OnCloseClick"/>
+    </StackPanel>
+  </Grid>
+</Window>

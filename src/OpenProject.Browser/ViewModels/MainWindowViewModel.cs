@@ -16,6 +16,7 @@ namespace OpenProject.Browser.ViewModels
     /// </summary>
     public WebView WebView { get; }
 
+
     /// <summary>
     /// The main window calculated width.
     /// </summary>

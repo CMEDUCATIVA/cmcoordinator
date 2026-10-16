@@ -26,6 +26,7 @@ namespace OpenProject.Browser.Services
       services.AddSingleton<BrowserManager>();
       services.AddSingleton<BcfierJavascriptInterop>();
       services.AddSingleton<JavaScriptBridge>();
+      services.AddSingleton<PinsService>();
       services.AddTransient<OpenProjectInstanceValidator>();
 
       CefBrowserInitializer.InitializeCefBrowser();
@@ -40,13 +41,10 @@ namespace OpenProject.Browser.Services
       // We're using HttpClientFactory to ensure that we don't hit any problems with
       // port exhaustion or stale DNS entries in long-lived HttpClients
       services.AddHttpClient(nameof(OpenProjectInstanceValidator))
-        .ConfigureHttpMessageHandlerBuilder(h =>
+        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
         {
-          if (h.PrimaryHandler is HttpClientHandler httpClientHandler)
-          {
-            // It defaults to true, but let's ensure it stays that way
-            httpClientHandler.AllowAutoRedirect = true;
-          }
+          // It defaults to true, but let's ensure it stays that way.
+          AllowAutoRedirect = true
         });
 
       return services;

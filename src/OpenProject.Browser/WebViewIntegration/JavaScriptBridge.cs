@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Windows;
 using CefSharp;
@@ -14,6 +15,7 @@ namespace OpenProject.Browser.WebViewIntegration
   public class JavaScriptBridge
   {
     private readonly OpenProjectInstanceValidator _instanceValidator;
+    private readonly PinsService _pinsService;
 
 
     /// <summary>
@@ -26,9 +28,10 @@ namespace OpenProject.Browser.WebViewIntegration
 
     private bool _isLoaded;
 
-    public JavaScriptBridge(OpenProjectInstanceValidator instanceValidator)
+    public JavaScriptBridge(OpenProjectInstanceValidator instanceValidator, PinsService pinsService)
     {
       _instanceValidator = instanceValidator;
+      _pinsService = pinsService;
     }
 
     private ChromiumWebBrowser _webBrowser;
@@ -46,6 +49,31 @@ namespace OpenProject.Browser.WebViewIntegration
     public delegate void NavigationEventHandler(object sender);
 
     private void ChangeLoadingState(object sender, object eventArgs) => _isLoaded = true;
+
+    public string CurrentUrl
+    {
+      get
+      {
+        try
+        {
+          if (_webBrowser == null)
+            return null;
+
+          var dispatcher = _webBrowser.Dispatcher ?? Application.Current?.Dispatcher;
+          if (dispatcher == null)
+            return null;
+
+          if (dispatcher.CheckAccess())
+            return _webBrowser.Address;
+
+          return dispatcher.Invoke(() => _webBrowser.Address);
+        }
+        catch
+        {
+          return null;
+        }
+      }
+    }
 
     public void SetWebBrowser(ChromiumWebBrowser webBrowser)
     {
@@ -82,6 +110,46 @@ namespace OpenProject.Browser.WebViewIntegration
         case MessageTypes.REMOVE_INSTANCE:
           ConfigurationHandler.RemoveSavedInstance(messagePayload);
           break;
+        case MessageTypes.PIN_REMOVE:
+        {
+          Log.Information("PinRemove received. payload={Payload}", messagePayload);
+          string urlFromPayload = null;
+          string wpIdFromPayload = null;
+          if (!string.IsNullOrWhiteSpace(messagePayload))
+          {
+            try
+            {
+              var data = JsonConvert.DeserializeObject<Dictionary<string, object>>(messagePayload);
+              if (data != null && data.TryGetValue("url", out var urlObj))
+              {
+                urlFromPayload = urlObj?.ToString();
+              }
+              if (data != null && data.TryGetValue("workPackageId", out var wpObj))
+              {
+                wpIdFromPayload = wpObj?.ToString();
+              }
+            }
+            catch
+            {
+              Log.Warning("PinRemove payload is not valid JSON: {Payload}", messagePayload);
+            }
+          }
+
+          var urlToUse = !string.IsNullOrWhiteSpace(urlFromPayload) ? urlFromPayload : CurrentUrl;
+          var workPackageId = WorkPackageIdResolver.FromUrl(urlToUse);
+          if (string.IsNullOrWhiteSpace(workPackageId) && !string.IsNullOrWhiteSpace(wpIdFromPayload))
+          {
+            workPackageId = wpIdFromPayload;
+          }
+          if (!string.IsNullOrWhiteSpace(wpIdFromPayload) && workPackageId != wpIdFromPayload)
+          {
+            Log.Warning("PinRemove workPackageId mismatch payload={PayloadId} resolved={ResolvedId} url={Url}",
+              wpIdFromPayload, workPackageId, urlToUse);
+          }
+          Log.Information("PinRemove resolved url={Url} workPackageId={WorkPackageId}", urlToUse, workPackageId);
+          _pinsService?.RemovePin(workPackageId);
+          break;
+        }
         case MessageTypes.ALL_INSTANCES_REQUESTED:
         {
           var allInstances = JsonConvert.SerializeObject(ConfigurationHandler.Settings.GetOpenProjectInstances());
@@ -145,19 +213,43 @@ namespace OpenProject.Browser.WebViewIntegration
           }
 
           break;
+        case MessageTypes.OPEN_URL:
+          try
+          {
+            var targetUrl = messagePayload?.Trim();
+            if (string.IsNullOrWhiteSpace(targetUrl))
+            {
+              Log.Warning("OpenUrl received empty payload.");
+              break;
+            }
+            VisitUrl(targetUrl);
+            OnAppForegroundRequestReceived?.Invoke(this);
+          }
+          catch (Exception e)
+          {
+            Log.Error(e, "error opening url from Revit");
+            MessageHandler.ShowError("Cannot open OpenProject URL. Please contact an administrator.");
+          }
+          break;
         case MessageTypes.SET_BROWSER_TO_FOREGROUND:
         case MessageTypes.VIEWPOINT_GENERATED:
+          Log.Information("Viewpoint generated. currentUrl={Url}", CurrentUrl ?? string.Empty);
+          _pinsService?.TryAddFromViewpointPayload(messagePayload, CurrentUrl);
           OnAppForegroundRequestReceived?.Invoke(this);
           break;
       }
 
       var messageData = JsonConvert.SerializeObject(new { messageType, trackingId, messagePayload });
       var encodedMessage = JsonConvert.ToString(messageData);
-      Application.Current.Dispatcher.Invoke(() =>
+      var dispatcher = _webBrowser?.Dispatcher ?? Application.Current?.Dispatcher;
+      if (dispatcher == null)
+        return;
+
+      dispatcher.BeginInvoke(new Action(() =>
       {
         _webBrowser?.GetMainFrame()
           .ExecuteJavaScriptAsync($"{REVIT_BRIDGE_JAVASCRIPT_NAME}.sendMessageToOpenProject({encodedMessage})");
-      });
+      }));
     }
 
     private void VisitUrl(string url)

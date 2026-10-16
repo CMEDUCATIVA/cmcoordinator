@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Cmcoordinator · Revit en vivo</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="importmap">{"imports":{"three":"/vendor/three/build/three.module.js","three/addons/":"/vendor/three/examples/jsm/"}}</script>
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header>
+    <div><span class="eyebrow">Cmcoordinator · laboratorio local</span><h1>Revit en vivo</h1></div>
+    <span id="connection" class="badge" role="status" aria-live="polite">Conectando al visor…</span>
+  </header>
+  <main>
+    <section class="viewport" aria-label="Modelo tridimensional">
+      <div class="toolbar"><button id="fit" type="button">Encuadrar modelo <kbd>F</kbd></button><button id="grid" type="button" aria-pressed="true">Cuadrícula</button></div>
+      <canvas id="scene" tabindex="0" aria-label="Visor 3D: arrastra para orbitar; rueda para acercar; clic para seleccionar"></canvas>
+      <div id="empty" class="empty"><strong>Tu modelo aparecerá aquí</strong><p>Abre una vista 3D en Revit y pulsa <b>Iniciar visor local</b>.<br>Puedes crear un elemento con <b>Cubo demo · 1 m</b>.</p></div>
+      <p class="hint">Arrastrar: orbitar · Botón derecho: desplazar · Rueda: zoom · Clic: propiedades</p>
+    </section>
+    <aside>
+      <section class="card"><h2>Origen</h2><p id="source">Esperando a Revit</p><p id="view" class="muted">Solo en este equipo · metros · eje Z vertical</p><dl class="stats"><div><dt>Elementos</dt><dd id="count">0</dd></div><div><dt>Triángulos</dt><dd id="triangles">0</dd></div><div><dt>Revisión</dt><dd id="sequence">0</dd></div></dl><p id="updated" class="muted">Sin actualizaciones</p></section>
+      <section class="card" id="load-progress" hidden><h2 id="load-stage">Recibiendo revisión</h2><progress id="load-bar" aria-labelledby="load-stage" max="1" value="0"></progress><p class="muted">La última revisión permanece visible durante la preparación. Controla la cola desde el Centro de sincronización en Revit.</p></section>
+      <section class="card"><h2>Publicación IFC local</h2><button id="generate-ifc" disabled>Generar IFC</button><p id="ifc-status" role="status" aria-live="polite">Esperando revisión BIM sincronizada.</p><div id="ifc-files"></div><p class="muted">Exporta una revisión fija de la vista 3D. El informe indica cobertura, clases proxy y relaciones fuera de alcance.</p></section>
+      <section class="card inspector"><h2 id="selection">Propiedades del elemento</h2><p id="selection-empty" class="muted">Selecciona una pieza del modelo.</p><div id="properties"></div></section>
+      <p class="notice">Datos BIM y geometría de la vista 3D seleccionada. Revisión y archivos IFC persistentes en este equipo. Sin conexión al CDE.</p>
+    </aside>
+  </main>
+</body>
+</html>

@@ -1,4 +1,4 @@
-﻿using Autodesk.Revit.DB;
+using Autodesk.Revit.DB;
 using Autodesk.Revit.UI;
 using OpenProject.Revit.Data;
 using OpenProject.Revit.Extensions;
@@ -38,6 +38,9 @@ namespace OpenProject.Revit.Entry
     public string GetName() => nameof(OpenViewpointEventHandler);
 
     private BcfViewpointWrapper _bcfViewpoint;
+    private ElementId _pendingViewId;
+    private ElementId _pendingViewpointViewId;
+    private bool _forceNoClipping;
 
     private static OpenViewpointEventHandler _instance;
 
@@ -69,24 +72,115 @@ namespace OpenProject.Revit.Entry
     {
       Log.Information("Received 'Opening BCF Viewpoint event'. Attempting to open viewpoint ...");
       Instance._bcfViewpoint = bcfViewpoint;
+      Instance._pendingViewpointViewId = null;
+      Instance._forceNoClipping = false;
+      Instance._pendingViewId = null;
+      ExternalEvent.Raise();
+    }
+
+    public static void ShowBcfViewpoint(BcfViewpointWrapper bcfViewpoint, ElementId targetViewId)
+    {
+      Log.Information("Received 'Opening BCF Viewpoint event'. Attempting to open viewpoint on view id {ViewId} ...",
+        targetViewId?.GetIntValue() ?? -1);
+      Instance._bcfViewpoint = bcfViewpoint;
+      Instance._pendingViewpointViewId = targetViewId;
+      Instance._forceNoClipping = true;
+      Instance._pendingViewId = null;
+      ExternalEvent.Raise();
+    }
+
+    public static void ActivateView(ElementId viewId)
+    {
+      if (viewId == null || viewId == ElementId.InvalidElementId)
+        return;
+
+      Log.Information("Received 'Activate view' event. Attempting to activate view id {ViewId} ...", viewId.GetIntValue());
+      Instance._pendingViewId = viewId;
+      Instance._bcfViewpoint = null;
       ExternalEvent.Raise();
     }
 
     private void ShowBCfViewpointInternal(UIApplication app)
     {
       UIDocument uiDocument = app.ActiveUIDocument;
+      if (_pendingViewId != null && _pendingViewId != ElementId.InvalidElementId)
+      {
+        try
+        {
+          var view = uiDocument.Document.GetElement(_pendingViewId) as View;
+          if (view == null || view.IsTemplate)
+            return;
+
+          Log.Information("ActivateView handler currentActiveView='{CurrentViewName}' currentActiveViewId={CurrentViewId} targetView='{TargetViewName}' targetViewId={TargetViewId}",
+            uiDocument.ActiveView?.Name ?? string.Empty,
+            uiDocument.ActiveView?.Id?.GetIntValue() ?? -1,
+            view.Name,
+            view.Id.GetIntValue());
+
+          if (uiDocument.ActiveView?.Id != view.Id)
+            uiDocument.ActiveView = view;
+          uiDocument.RefreshActiveView();
+          Log.Information("ActivateView handler refreshed active view '{ViewName}' (id {ViewId}).",
+            uiDocument.ActiveView?.Name ?? string.Empty,
+            uiDocument.ActiveView?.Id?.GetIntValue() ?? -1);
+        }
+        finally
+        {
+          _pendingViewId = null;
+        }
+
+        return;
+      }
+
+      if (_bcfViewpoint == null)
+        return;
+
       var hasCamera = _bcfViewpoint.GetCamera().Match(
         camera =>
         {
           Log.Information("Found camera type {t}, opening related OpenProject view ...", camera.Type.ToString());
-          View3D openProjectView = uiDocument.Document.GetOpenProjectView(camera.Type);
+          var hasSelection = _bcfViewpoint.GetSelection().Any();
+          var applyClippingDefault = !_forceNoClipping && _bcfViewpoint.GetClippingPlanes().Any();
+          ViewSelectionResult selectionResult;
+          View3D openProjectView;
+
+          if (_pendingViewpointViewId != null && _pendingViewpointViewId != ElementId.InvalidElementId)
+          {
+            openProjectView = uiDocument.Document.GetElement(_pendingViewpointViewId) as View3D;
+            if (openProjectView != null)
+            {
+              selectionResult = new ViewSelectionResult(openProjectView, applyClippingDefault);
+            }
+            else
+            {
+              selectionResult = ViewSelectionService.GetTargetView(app, camera.Type, promptUser: hasSelection,
+                applyClippingDefault: applyClippingDefault);
+              openProjectView = selectionResult.View;
+            }
+
+            _pendingViewpointViewId = null;
+            _forceNoClipping = false;
+          }
+          else
+          {
+            selectionResult = ViewSelectionService.GetTargetView(app, camera.Type, promptUser: hasSelection,
+              applyClippingDefault: applyClippingDefault);
+            openProjectView = selectionResult.View;
+          }
 
           ResetView(uiDocument, openProjectView);
           Log.Information("Reset view '{v}'.", openProjectView.Name);
           ApplyViewOrientationAndVisibility(uiDocument, openProjectView, camera);
           Log.Information("Applied view orientation and visibility in '{v}'.", openProjectView.Name);
-          ApplyClippingPlanes(uiDocument, openProjectView);
-          Log.Information("Applied view point clipping planes in '{v}'.", openProjectView.Name);
+          if (selectionResult.ApplyClipping)
+          {
+            ApplyClippingPlanes(uiDocument, openProjectView);
+            Log.Information("Applied view point clipping planes in '{v}'.", openProjectView.Name);
+          }
+          else
+          {
+            Log.Information("Skipped applying view point clipping planes in '{v}'.", openProjectView.Name);
+          }
 
           if (!uiDocument.ActiveView.Id.Equals(openProjectView.Id))
           {
@@ -95,7 +189,9 @@ namespace OpenProject.Revit.Entry
           }
 
           uiDocument.RefreshActiveView();
-          Log.Information("Refreshed active view.");
+          Log.Information("Refreshed active view. activeView='{ViewName}' activeViewId={ViewId}",
+            uiDocument.ActiveView?.Name ?? string.Empty,
+            uiDocument.ActiveView?.Id?.GetIntValue() ?? -1);
           StatusBarService.ResetStatusBarText();
 
           ZoomIfNeeded(app, camera, uiDocument.ActiveView.Id);

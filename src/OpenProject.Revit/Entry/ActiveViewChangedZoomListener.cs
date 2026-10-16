@@ -23,11 +23,22 @@ namespace OpenProject.Revit.Entry
     /// <param name="zoom">The zoom in decimal precision.</param>
     public static void SetPendingZoomChangedCallback(UIApplication app, ElementId viewId, decimal zoom)
     {
+      Log.Information("SetPendingZoomChangedCallback scheduled. targetViewId={ViewId} zoom={Zoom}", viewId?.ToString() ?? "null", zoom);
+
       void Callback(object sender, IdlingEventArgs args)
       {
         StatusBarService.SetStatusText("Zooming to scale '" + zoom + "' ...");
         UIView currentView = app.ActiveUIDocument.GetOpenUIViews().First();
-        if (currentView.ViewId != viewId) return;
+        Log.Information("Zoom callback entered. currentUIViewId={CurrentUIViewId} targetViewId={TargetViewId} activeViewId={ActiveViewId} activeViewName='{ActiveViewName}'",
+          currentView.ViewId?.ToString() ?? "null",
+          viewId?.ToString() ?? "null",
+          app.ActiveUIDocument?.ActiveView?.Id?.ToString() ?? "null",
+          app.ActiveUIDocument?.ActiveView?.Name ?? string.Empty);
+        if (currentView.ViewId != viewId)
+        {
+          Log.Information("Zoom callback waiting: UIView does not match target yet.");
+          return;
+        }
 
         UIDocument uiDoc = app.ActiveUIDocument;
         View activeView = uiDoc.ActiveView;
@@ -48,7 +59,13 @@ namespace OpenProject.Revit.Entry
           .Subtract(activeView.UpDirection.Multiply(zoomedViewBoxHeight / 2))
           .Subtract(activeView.RightDirection.Multiply(zoomedViewBoxWidth / 2));
 
-        Log.Information("Zoom to {topRight} | {bottomLeft} ...", newTopRight.ToString(), newBottomLeft.ToString());
+        Log.Information("Zoom callback applying rectangle topRight={TopRight} bottomLeft={BottomLeft} currentHeight={CurrentHeight} currentWidth={CurrentWidth} targetHeight={TargetHeight} targetWidth={TargetWidth}",
+          newTopRight.ToString(),
+          newBottomLeft.ToString(),
+          currentHeight,
+          currentWidth,
+          zoomedViewBoxHeight,
+          zoomedViewBoxWidth);
         currentView.ZoomAndCenterRectangle(newTopRight, newBottomLeft);
 
         StatusBarService.ResetStatusBarText();

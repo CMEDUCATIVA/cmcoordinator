@@ -5,6 +5,7 @@ using System.Security.Cryptography.X509Certificates;
 using CefSharp;
 using OpenProject.Browser.Services;
 using OpenProject.Browser.Settings;
+using Serilog;
 
 namespace OpenProject.Browser.WebViewIntegration
 {
@@ -15,6 +16,21 @@ namespace OpenProject.Browser.WebViewIntegration
   /// </summary>
   public class OpenProjectBrowserRequestHandler : IRequestHandler
   {
+    private readonly OpenProjectBrowserResourceRequestHandler _resourceRequestHandler;
+
+    public OpenProjectBrowserRequestHandler(PinsService pinsService)
+    {
+      _resourceRequestHandler = new OpenProjectBrowserResourceRequestHandler(pinsService);
+      try
+      {
+        Log.Information("OpenProjectBrowserRequestHandler created");
+      }
+      catch
+      {
+        // ignore
+      }
+    }
+
     public bool GetAuthCredentials(IWebBrowser chromiumWebBrowser, IBrowser browser, string originUrl, bool isProxy,
       string host, int port, string realm, string scheme, IAuthCallback callback)
     {
@@ -25,7 +41,20 @@ namespace OpenProject.Browser.WebViewIntegration
       IFrame frame, IRequest request, bool isNavigation, bool isDownload, string requestInitiator,
       ref bool disableDefaultHandling)
     {
-      return null;
+      try
+      {
+        var url = request?.Url ?? string.Empty;
+        if (url.IndexOf("/viewpoints/", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+          Log.Information("GetResourceRequestHandler url={Url} method={Method} type={Type}", url, request?.Method,
+            request?.ResourceType);
+        }
+      }
+      catch
+      {
+        // ignore
+      }
+      return _resourceRequestHandler;
     }
 
     public bool OnBeforeBrowse(
@@ -36,6 +65,17 @@ namespace OpenProject.Browser.WebViewIntegration
       bool userGesture,
       bool isRedirect)
     {
+      try
+      {
+        if (request?.ResourceType == ResourceType.MainFrame)
+        {
+          Log.Information("OnBeforeBrowse url={Url} gesture={Gesture} redirect={Redirect}", request.Url, userGesture, isRedirect);
+        }
+      }
+      catch
+      {
+        // ignore
+      }
       if (ShouldOpenRequestInEmbeddedBrowser(request, isRedirect))
         return false;
 

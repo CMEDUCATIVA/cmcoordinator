@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using Autodesk.Revit.DB;
@@ -10,6 +11,7 @@ using OpenProject.Shared;
 using OpenProject.Shared.BcfApi;
 using OpenProject.Shared.Math3D;
 using OpenProject.Shared.Math3D.Enumeration;
+using Serilog;
 
 namespace OpenProject.Revit.Extensions
 {
@@ -180,9 +182,11 @@ namespace OpenProject.Revit.Extensions
 
     private static string GetBase64RevitSnapshot(this UIDocument uiDocument)
     {
+      var sw = Stopwatch.StartNew();
       var tmpPath = ConfigurationConstant.OpenProjectTempDirectory;
       Directory.CreateDirectory(tmpPath);
       var tempImg = Path.Combine(tmpPath, Path.GetTempFileName() + ".png");
+      const int pixelSize = 600;
       var options = new ImageExportOptions
       {
         FilePath = tempImg,
@@ -191,12 +195,15 @@ namespace OpenProject.Revit.Extensions
         ExportRange = ExportRange.VisibleRegionOfCurrentView,
         ZoomType = ZoomFitType.FitToPage,
         ImageResolution = ImageResolution.DPI_72,
-        PixelSize = 1000
+        PixelSize = pixelSize
       };
       uiDocument.Document.ExportImage(options);
 
       var bytes = File.ReadAllBytes(tempImg);
       File.Delete(tempImg);
+      sw.Stop();
+      Log.Information("Exported snapshot in {ElapsedMs} ms (pixelSize {PixelSize})", sw.ElapsedMilliseconds,
+        pixelSize);
       return Convert.ToBase64String(bytes);
     }
   }
