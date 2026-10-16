@@ -22,6 +22,7 @@ namespace OpenProject.Revit.Views
     public McpSettingsWindow()
     {
       InitializeComponent();
+      InitializeUpdates();
       ColumnsItemsControl.ItemsSource = _columns;
       SectionList.SelectedIndex = 0;
       LoadSettings();
@@ -233,6 +234,7 @@ namespace OpenProject.Revit.Views
       ConnectionPanel.Visibility = index == 0 ? Visibility.Visible : Visibility.Collapsed;
       VisibilityPanel.Visibility = index == 1 ? Visibility.Visible : Visibility.Collapsed;
       AiAgentPanel.Visibility = index == 2 ? Visibility.Visible : Visibility.Collapsed;
+      UpdatesPanel.Visibility = index == 3 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnTestAiConnectionClick(object sender, RoutedEventArgs e)

@@ -124,6 +124,7 @@
     <EmbeddedResource Include="Assets\**\*" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="..\..\tools\updater\apply-update.ps1" Link="Updater\apply-update.ps1" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\tools\local-live-viewer\server.mjs" Link="LiveViewer\server.mjs" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\tools\local-live-viewer\lib\*.mjs" Link="LiveViewer\lib\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\tools\local-live-viewer\ifc\*.py" Link="LiveViewer\ifc\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />

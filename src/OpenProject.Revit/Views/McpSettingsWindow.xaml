@@ -23,6 +23,7 @@
         <ListBoxItem Content="Conexion"/>
         <ListBoxItem Content="Visibilidad"/>
         <ListBoxItem Content="Agente IA"/>
+        <ListBoxItem Content="Actualizaciones"/>
       </ListBox>
     </Border>
 
@@ -133,6 +134,21 @@
         <TextBlock Margin="0,10,0,0" TextWrapping="Wrap" Foreground="#666666">
           Usa wss://tu-dominio/revit-bridge y un Workstation ID unico por equipo Revit.
         </TextBlock>
+      </StackPanel>
+
+      <StackPanel x:Name="UpdatesPanel" Visibility="Collapsed">
+        <TextBlock Text="Actualizar Cmcoordinator" FontWeight="Bold" Margin="0,0,0,12"/>
+        <TextBlock x:Name="InstalledVersionText" Margin="0,0,0,8"/>
+        <TextBlock Text="Origen: GitHub · CMEDUCATIVA/cmcoordinator" TextWrapping="Wrap" Margin="0,0,0,12"/>
+        <TextBlock Text="Descarga la última publicación estable y verifica el instalador. Se instalará después de cerrar Revit; Windows puede solicitar permisos de administrador."
+                   TextWrapping="Wrap" Foreground="#666666" Margin="0,0,0,16"/>
+        <StackPanel Orientation="Horizontal">
+          <Button x:Name="UpdateButton" Content="Actualizar desde GitHub" Padding="12,5" Click="OnUpdateClick"/>
+          <Button x:Name="CancelUpdateButton" Content="Cancelar descarga" Padding="12,5" Margin="8,0,0,0"
+                  Visibility="Collapsed" Click="OnCancelUpdateClick"/>
+        </StackPanel>
+        <TextBlock x:Name="UpdateStatusText" TextWrapping="Wrap" Margin="0,16,0,0"
+                   AutomationProperties.LiveSetting="Polite"/>
       </StackPanel>
     </Grid>
 

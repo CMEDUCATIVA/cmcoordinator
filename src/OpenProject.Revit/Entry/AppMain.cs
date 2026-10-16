@@ -73,8 +73,6 @@ namespace OpenProject.Revit.Entry
         var liveButton = livePanel.AddItem(new PushButtonData("LocalLiveSync", "Iniciar\nvisor local",
           assemblyPath, "OpenProject.Revit.Entry.CmdLocalLiveSync")) as PushButton;
         LocalLiveSync.Initialize(application, liveButton);
-        livePanel.AddItem(new PushButtonData("LocalLiveCube", "Cubo demo\n1 m", assemblyPath,
-          "OpenProject.Revit.Entry.CmdLiveDemoCube")).ToolTip = "Crear un cubo de prueba en el modelo (se puede deshacer)";
 
         // Dockable pins pane
         var pinsView = new PinsPaneView();

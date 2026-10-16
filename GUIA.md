@@ -1,4 +1,4 @@
-Guía del flujo local BIM/IFC: [Cmcoordinator](tools/local-live-viewer/GUIA_0002.md). Código actual: `D:\Cmcoordinator`.
+Guía del flujo local BIM/IFC: [Cmcoordinator](tools/local-live-viewer/GUIA_0003.md). Código actual: `D:\Cmcoordinator`.
 
 # Guia De Instalacion Y Limpieza
 
