@@ -78,6 +78,7 @@ namespace OpenProject.Revit.Entry
         var pinsView = new PinsPaneView();
         var paneProvider = new PinsDockablePaneProvider(pinsView);
         application.RegisterDockablePane(PinsPaneManager.PaneId, "Centro CDE para gestión del modelo", paneProvider);
+        CdeAccessController.Initialize(application);
       }
       catch (Exception exception)
       {
@@ -97,6 +98,7 @@ namespace OpenProject.Revit.Entry
     {
       try
       {
+        CdeAccessController.Shutdown(application);
         LocalLiveSync.Shutdown();
         RevitBridgeClient.Stop();
         RibbonButtonClickHandler.CloseBrowserIfRunning();

@@ -23,7 +23,7 @@ namespace OpenProject.Revit.LiveSync.Queue
     private long _generation, _persisted;
     private bool _reconcile;
     private volatile bool _captureHold, _inFlight;
-    private volatile bool _paused, _validated, _attention;
+    private volatile bool _paused, _validated, _attention, _waiting;
     private volatile SyncProgress _progress = new();
     private int _retry;
     private int _disposed;
@@ -96,10 +96,13 @@ namespace OpenProject.Revit.LiveSync.Queue
       while (!_cancel.IsCancellationRequested)
       {
         SaveLatest(outbox);
-        if (retrySeen != _retry) { retrySeen = _retry; nextAttempt = nextProbe = DateTime.MinValue; remote = null; }
+        if (_receiver is ISyncPresence presence) presence.SetPaused(_paused || _captureHold);
+        if (retrySeen != _retry) {
+          if (_waiting) { outbox.Abandon("Publicación solicitada por el usuario; se conserva la captura más reciente"); _waiting = false; }
+          retrySeen = _retry; nextAttempt = nextProbe = DateTime.MinValue; remote = null; }
         if (_attention || !_validated || _paused || _captureHold)
         {
-          Report(outbox, _attention ? "Requiere atención" : _paused ? "En pausa" : "Esperando captura",
+          Report(outbox, _attention ? (_waiting ? "En espera de publicación" : "Requiere atención") : _paused ? "En pausa" : "Esperando captura",
             _attention ? _progress.Detail : "La cola local se conserva; no salen nuevos lotes", remote, outbox.Active, _progress.Done);
           await Delay(200).ConfigureAwait(false); continue;
         }
@@ -119,7 +122,7 @@ namespace OpenProject.Revit.LiveSync.Queue
           var job = outbox.Active;
           if (job != null && remote.RevisionId == job.JobId)
           { outbox.Complete(job); job = null; }
-          if (job == null && (outbox.HasPending || remote.RevisionId != outbox.Get("revision")))
+          if (job == null && (outbox.HasPending || remote.RevisionId != outbox.Get("revision") || remote.SessionId != _session))
           {
             if (remote.SessionStartedAt > _started) throw new ReceiverException(403);
             var reset = remote.RevisionId != outbox.Get("revision") || remote.SourceId != outbox.Get("source") || remote.SessionId != _session;
@@ -129,7 +132,7 @@ namespace OpenProject.Revit.LiveSync.Queue
           if (job == null)
           {
             Report(outbox, remote.ViewerRevision == remote.RevisionId ? "Al día" : "Guardado · visor pendiente",
-              "Todos los cambios preparados están guardados en el destino local", remote);
+              "Todos los cambios preparados están guardados en el destino seleccionado", remote);
             await Delay(250).ConfigureAwait(false); continue;
           }
           Report(outbox, "Sincronizando", "Consultando bloques confirmados", remote, job);
@@ -137,6 +140,11 @@ namespace OpenProject.Revit.LiveSync.Queue
           RemoteJob saved;
           try { saved = await _receiver.BeginAsync(job, _cancel.Token).ConfigureAwait(false); }
           finally { _inFlight = false; }
+          if (saved.Waiting)
+          {
+            WaitForPublication(outbox, "Está publicando " + (saved.PublishingUser ?? "otra conexión") + ". Cuando termine, pulsa Sincronizar para publicar tu captura.", remote, job);
+            continue;
+          }
           if (!saved.Committed)
           {
             var received = new HashSet<int>(saved.Received);
@@ -165,6 +173,10 @@ namespace OpenProject.Revit.LiveSync.Queue
           _log.Emit("transport", "REVISION_STORED", "Revisión guardada en destino; presentación independiente", job.JobId);
           remote = null; failures = 0; nextAttempt = DateTime.MinValue;
         }
+        catch (ReceiverException error) when (error.StatusCode == 423)
+        {
+          WaitForPublication(outbox, "Otra conexión tiene el permiso de publicación. Pulsa Sincronizar para volver a intentarlo.", remote, outbox.Active);
+        }
         catch (ReceiverException error) when (error.StatusCode == 409)
         {
           outbox.Abandon("La base del destino cambió; se necesita reconciliación");
@@ -187,6 +199,13 @@ namespace OpenProject.Revit.LiveSync.Queue
             _attention ? "El receptor requiere atención: " + SyncFailure.Describe(error) : "Destino no disponible; reintento con espera");
         }
       }
+    }
+
+    private void WaitForPublication(SqliteOutbox box, string detail, ReceiverStatus remote, SyncJob job)
+    {
+      _attention = _waiting = true;
+      Report(box, "En espera de publicación", detail, remote, job);
+      _log.Emit("transport", "PUBLISHER_WAITING", "Cola conservada; se necesita solicitud manual de publicación");
     }
 
     private void SaveLatest(SqliteOutbox outbox, bool duringJob = false)

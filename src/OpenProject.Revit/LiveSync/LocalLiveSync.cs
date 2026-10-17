@@ -33,6 +33,15 @@ namespace OpenProject.Revit.LiveSync
     private static bool _reconciling, _resumeAfterCapture;
     private static string _message;
     private static string _documentPath;
+    private static string _destinationKey;
+    private static CdeDestination _remote;
+    public static string DestinationLabel => _remote?.Label ?? "Visor local · protocolo 2";
+    public static void ConnectDestination(CdeDestination destination)
+    {
+      if (destination != null && destination.UserId != Entry.CdeAccessController.SignedInUserId)
+        throw new InvalidOperationException("La conexión pertenece a otro usuario. Genera un token con tu sesión CDE.");
+      _remote = destination; Request("connect");
+    }
     public static string ModelLabel { get; private set; } = "Sin modelo conectado";
     public static string CaptureDescription => _message ?? _capture?.Description ?? "Captura inactiva";
     public static string Activity => (_telemetry?.WriteError ?? "") + Environment.NewLine + (_telemetry?.Recent ?? "Sin actividad");
@@ -57,24 +66,40 @@ namespace OpenProject.Revit.LiveSync
     }
     public static void Start(UIApplication app)
     {
+      if (!Entry.CdeAccessController.CanUseLocalSync)
+      { Entry.CdeAccessController.Open(app); return; }
       var document = app.ActiveUIDocument?.Document;
       if (document == null || app.ActiveUIDocument.ActiveView is not View3D view || view.IsTemplate || document.IsFamilyDocument)
         throw new InvalidOperationException("Abre una vista 3D de un proyecto para iniciar la sincronización.");
-      if (_worker != null && _document?.IsValidObject == true && Equals(document, _document) && _capture.IsValid && _capture.ViewId == view.Id && document.PathName == _documentPath)
+      if (_worker != null && _destinationKey == (_remote?.QueueKey ?? "local") && _document?.IsValidObject == true && Equals(document, _document) && _capture.IsValid && _capture.ViewId == view.Id && document.PathName == _documentPath)
       { _application = app; Show(app); return; }
       var source = SourceIdentity.Read(document);
       var previous = _worker; previous?.Dispose();
       _document = document; _application = app;
       _documentPath = document.PathName;
-      _worker = new SyncWorker(Path.Combine(Root, "outbox", source), new SyncReceiver(LocalServiceHost.EnsureAsync), _telemetry, previous?.Completion);
+      _destinationKey = _remote?.QueueKey ?? "local";
+      var queue = _remote == null ? Path.Combine(Root, "outbox", source) : Path.Combine(Root, "outbox", _destinationKey, source);
+      var receiver = _remote == null ? new SyncReceiver(LocalServiceHost.EnsureAsync) : new SyncReceiver(destination: _remote);
+      _worker = new SyncWorker(queue, receiver, _telemetry, previous?.Completion);
       _capture = new CaptureScheduler(document, view, source, _telemetry);
       _needsCapture = true;
       ModelLabel = document.Title + " · " + view.Name; _message = null; _reconciling = false; _resumeAfterCapture = false;
       _telemetry.Emit("session", "SESSION_OPEN", "Sesión local abierta; esperando captura cooperativa");
-      Show(app); _ = OpenViewerAsync();
+      Show(app); if (_remote == null) _ = OpenViewerAsync();
     }
     public static void Show(UIApplication app)
     { _panel.ApplyTheme(UIThemeManager.CurrentTheme == UITheme.Dark); app.GetDockablePane(PaneId).Show(); }
+    public static string CdeSessionStatus { get; private set; } = "CDE pendiente de confirmar";
+    public static void SetCdeSessionStatus(string status)
+    {
+      if (CdeSessionStatus == status) return;
+      CdeSessionStatus = status;
+      _telemetry?.Emit("access", "CDE_SESSION_STATE", status);
+    }
+    public static void HoldForAccountChange()
+    { _worker?.Pause(true); _message = "Cambió la cuenta CDE · cola conservada; revisa y pulsa Sincronizar para continuar"; }
+    public static void HoldForSignIn()
+    { _worker?.Pause(true); _message = "Sesión CDE cerrada · cola conservada; inicia sesión y pulsa Sincronizar para continuar"; }
     public static void Request(string action)
     { if (!string.IsNullOrEmpty(action)) { Actions.Enqueue(action); _external?.Raise(); } }
     private static void ExecuteActions(UIApplication app)
@@ -83,14 +108,34 @@ namespace OpenProject.Revit.LiveSync
       {
         try
         {
-          if (action == "viewer") { _ = OpenViewerAsync(); continue; }
+          if (!Entry.CdeAccessController.CanUseLocalSync)
+          { Entry.CdeAccessController.Open(app); continue; }
+          if (action == "connect")
+          {
+            _worker?.Pause(true);
+            // A new token for the same address also needs a fresh transport instance.
+            _destinationKey = null; Start(app); continue;
+          }
+          if (action == "sync" && _destinationKey != (_remote?.QueueKey ?? "local")) { Start(app); continue; }
+          if (action == "viewer")
+          {
+            if (_remote == null) _ = OpenViewerAsync();
+            else
+            {
+              Entry.RibbonButtonClickHandler.OpenBrowser(app);
+              var projectId = _remote.Address.AbsolutePath.Split('/')[2];
+              Entry.RibbonButtonClickHandler.IpcHandler.SendOpenUrlRequestToDesktopApp(
+                new Uri(_remote.Address, "/projects/" + projectId + "/bcf").AbsoluteUri);
+            }
+            continue;
+          }
           if (action == "export") { _ = ExportAsync(); continue; }
           if (_worker == null)
           { if (action is "sync" or "reset") Start(app); else _message = "No hay una sesión de sincronización activa"; continue; }
           if (action == "stop") { _capture.Stop(); _worker.HoldForReconciliation(); _message = null; }
           else if (action == "pause")
           { if (_capture.Stopped) Reconcile(); else _worker.Pause(!_worker.IsPaused); }
-          else if (action == "sync" && !_capture.Stopped) { _worker.Retry(); _worker.Pause(false); }
+          else if (action == "sync" && !_capture.Stopped) { _message = null; _worker.Retry(); _worker.Pause(false); }
           else if (action is "sync" or "reset") Reconcile();
           else if (action == "retry")
           { _message = null; if (_capture.Failed) Reconcile(); else _worker.Retry(); }
@@ -106,6 +151,7 @@ namespace OpenProject.Revit.LiveSync
     { TickCapture(); }
     private static void TickCapture()
     {
+      if (!Entry.CdeAccessController.CanUseLocalSync) return;
       if (_worker == null) return;
       if (_document?.IsValidObject != true)
       { if (!_capture.Stopped) { _worker.HoldForReconciliation(); _capture.Stop(); } _needsCapture = false; _message = "Documento cerrado · cola conservada; abre el modelo para reconciliar"; return; }
@@ -114,9 +160,12 @@ namespace OpenProject.Revit.LiveSync
       if (_message?.StartsWith("Captura en espera", StringComparison.Ordinal) == true) _message = null;
       if (_document.PathName != _documentPath)
       {
-        if (!_capture.Stopped) { _worker.HoldForReconciliation(); _capture.Stop(); } _needsCapture = false;
-        _message = "El archivo cambió (Guardar como). Abre una vista 3D y pulsa Centro de sincronización para conectarlo con su propia cola.";
-        return;
+        _documentPath = _document.PathName;
+        ModelLabel = _document.Title + " · " + _document.GetElement(_capture.ViewId)?.Name;
+        _telemetry.Emit("session", "DOCUMENT_RELOCATED", "Ruta actualizada; identidad y cola conservadas");
+        if (_capture.Stopped) { _needsCapture = false; return; }
+        var resume = !_worker.IsPaused;
+        Reconcile(); _resumeAfterCapture = resume;
       }
       var snapshot = _capture.Tick(); _needsCapture = _capture.HasWork; if (snapshot == null) return;
       _worker.Submit(snapshot, _reconciling); _reconciling = false;

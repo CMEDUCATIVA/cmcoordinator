@@ -17,6 +17,8 @@ namespace OpenProject.Browser.WebViewIntegration
     public static void InitializeCefBrowser()
     {
       var settings = new CefSettings();
+      settings.Locale = "es";
+      settings.AcceptLanguageList = "es-ES,es";
 
       // create custom user agent to identify the add-in from OpenProject
       var chromiumVersion = Cef.ChromiumVersion;

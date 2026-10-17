@@ -27,9 +27,9 @@ namespace OpenProject.Revit.LiveSync
 
   public sealed class LiveSnapshot
   {
-    public LiveSnapshot(string sourceId, string title, string view, IDictionary<string, LiveElement> elements, Bim.BimContext bim = null)
+    public LiveSnapshot(string sourceId, string title, string view, IDictionary<string, LiveElement> elements, Bim.BimContext bim = null, string documentId = null, string legacySourceId = null)
     {
-      SourceId = sourceId;
+      SourceId = sourceId; DocumentId = documentId; LegacySourceId = legacySourceId;
       Title = title;
       View = view;
       Elements = new Dictionary<string, LiveElement>(elements, StringComparer.Ordinal);
@@ -37,6 +37,8 @@ namespace OpenProject.Revit.LiveSync
     }
 
     public string SourceId { get; }
+    public string DocumentId { get; }
+    public string LegacySourceId { get; }
     public string Title { get; }
     public string View { get; }
     public IReadOnlyDictionary<string, LiveElement> Elements { get; }
@@ -49,6 +51,8 @@ namespace OpenProject.Revit.LiveSync
     public string SessionId { get; set; }
     public long SessionStartedAt { get; set; }
     public string SourceId { get; set; }
+    public string DocumentId { get; set; }
+    public string LegacySourceId { get; set; }
     public string Title { get; set; }
     public string View { get; set; }
     public long Sequence { get; set; }
@@ -65,7 +69,7 @@ namespace OpenProject.Revit.LiveSync
       return new LivePacket
       {
         SessionId = sessionId, SessionStartedAt = sessionStartedAt, Sequence = sequence, BaseSequence = baseSequence,
-        SourceId = current.SourceId, Title = current.Title, View = current.View, Reset = reset, Bim = current.Bim,
+        SourceId = current.SourceId, DocumentId = current.DocumentId, LegacySourceId = current.LegacySourceId, Title = current.Title, View = current.View, Reset = reset, Bim = current.Bim,
         Updated = current.Elements.Where(kv => reset ||
           !acknowledged.Elements.TryGetValue(kv.Key, out var previous) ||
           !ReferenceEquals(previous, kv.Value)).Select(kv => kv.Value).ToList(),

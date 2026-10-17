@@ -51,7 +51,7 @@ namespace OpenProject.Revit.LiveSync.Queue
       using var transaction = _db.BeginTransaction();
       var changed = Get("source") != snapshot.SourceId || Get("title") != snapshot.Title || Get("view") != snapshot.View;
       var bimJson = SyncEncoding.Json(snapshot.Bim);
-      changed |= Get("bim") != bimJson;
+      changed |= Get("bim") != bimJson || Get("documentId") != snapshot.DocumentId || Get("legacySourceId") != snapshot.LegacySourceId;
       var existing = new HashSet<string>();
       using (var cmd = Command("SELECT id FROM desired"))
       using (var reader = cmd.ExecuteReader()) while (reader.Read()) existing.Add(reader.GetString(0));
@@ -66,7 +66,7 @@ namespace OpenProject.Revit.LiveSync.Queue
       }
       foreach (var id in existing) { Execute("DELETE FROM desired WHERE id=$id", ("$id", id)); changed = true; }
       Set("source", snapshot.SourceId); Set("title", snapshot.Title); Set("view", snapshot.View);
-      Set("bim", bimJson);
+      Set("bim", bimJson); Set("documentId", snapshot.DocumentId); Set("legacySourceId", snapshot.LegacySourceId);
       if (changed) Set("dirty", "1");
       transaction.Commit();
       _previous = snapshot;
@@ -106,6 +106,7 @@ namespace OpenProject.Revit.LiveSync.Queue
       }
       var sequence = long.TryParse(Get("sequence"), out var number) ? number + 1 : 1;
       var packet = new LivePacket { SessionId = sessionId, SessionStartedAt = startedAt, SourceId = Get("source"),
+        DocumentId = Get("documentId"), LegacySourceId = Get("legacySourceId"),
         Title = Get("title"), View = Get("view"), Sequence = sequence, BaseSequence = 0,
         Reset = reset, Updated = updated, Removed = removed,
         Bim = JsonConvert.DeserializeObject<Bim.BimContext>(Get("bim") ?? "null") };
@@ -113,7 +114,7 @@ namespace OpenProject.Revit.LiveSync.Queue
       if (bytes.Length > SyncEncoding.MaxPayloadBytes)
         throw new InvalidOperationException("La revisión excede 32 MB; reduce el alcance de la vista.");
       var job = new SyncJob { JobId = Guid.NewGuid().ToString("N"), SessionId = sessionId, SessionStartedAt = startedAt,
-        SourceId = packet.SourceId, Title = packet.Title, View = packet.View, Sequence = sequence,
+        SourceId = packet.SourceId, DocumentId = packet.DocumentId, LegacySourceId = packet.LegacySourceId, Title = packet.Title, View = packet.View, Sequence = sequence,
         BaseRevision = baseRevision, Reset = reset, ByteLength = bytes.Length,
         ChunkCount = (bytes.Length + SyncEncoding.ChunkBytes - 1) / SyncEncoding.ChunkBytes, PayloadHash = SyncEncoding.Hash(bytes) };
       for (var index = 0; index < job.ChunkCount; index++)

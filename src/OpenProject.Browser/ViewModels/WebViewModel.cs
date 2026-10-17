@@ -14,6 +14,7 @@ namespace OpenProject.Browser.ViewModels
     private readonly IGitHubService _gitHubService;
     private readonly BrowserManager _browserManager;
     private readonly PinsService _pinsService;
+    private CdeSessionMonitor _sessionMonitor;
 
     public ChromiumWebBrowser Browser => _browserManager.Browser;
 
@@ -26,6 +27,9 @@ namespace OpenProject.Browser.ViewModels
 
       _browserManager.Initialize();
       InitializeIpcConnection();
+      var sessionArgs = Environment.GetCommandLineArgs();
+      var nonce = sessionArgs.SkipWhile(arg => arg != "session").Skip(1).FirstOrDefault();
+      if (!string.IsNullOrWhiteSpace(nonce)) _sessionMonitor = new CdeSessionMonitor(Browser, nonce);
       CheckForUpdates();
     }
 

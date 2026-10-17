@@ -70,6 +70,26 @@ namespace OpenProject.Tests.LiveSync
       finally { worker.Dispose(); await worker.Completion; }
     }
     [Fact]
+    public async Task ReopeningUnchangedModelClaimsANewPublisherSession()
+    {
+      using var folder = new OutboxTests.TestFolder();
+      var receiver = new FakeReceiver();
+      var first = new SyncWorker(folder.Path, receiver, new RecordingLog());
+      first.Submit(Snapshot("unchanged"));
+      try { await Until(() => receiver.Committed.Count == 1); }
+      finally { first.Dispose(); await first.Completion; }
+      var previous = (await receiver.StatusAsync(CancellationToken.None)).SessionId;
+      var second = new SyncWorker(folder.Path, receiver, new RecordingLog());
+      second.Submit(Snapshot("unchanged"));
+      try
+      {
+        await Until(() => receiver.Committed.Count == 2);
+        Assert.NotEqual(previous, (await receiver.StatusAsync(CancellationToken.None)).SessionId);
+        Assert.Single(receiver.Scene);
+      }
+      finally { second.Dispose(); await second.Completion; }
+    }
+    [Fact]
     public async Task PermanentErrorWaitsForManualRetryInsteadOfSpinning()
     {
       using var folder = new OutboxTests.TestFolder();
@@ -80,6 +100,25 @@ namespace OpenProject.Tests.LiveSync
         worker.Submit(Snapshot("one")); await Until(() => worker.Progress.Attention);
         var attempts = receiver.Begins; await Task.Delay(400); Assert.Equal(attempts, receiver.Begins);
         receiver.Reject = false; worker.Retry(); await Until(() => receiver.Scene.ContainsKey("one"));
+      }
+      finally { worker.Dispose(); await worker.Completion; }
+    }
+    [Fact]
+    public async Task WaitingPublisherKeepsLatestCaptureUntilExplicitRetry()
+    {
+      using var folder = new OutboxTests.TestFolder();
+      var receiver = new FakeReceiver { Waiting = true };
+      var worker = new SyncWorker(folder.Path, receiver, new RecordingLog());
+      try
+      {
+        worker.Submit(Snapshot("old"));
+        await Until(() => worker.Progress.Stage == "En espera de publicación");
+        var begins = receiver.Begins;
+        worker.Submit(Snapshot("latest")); receiver.Waiting = false;
+        await Task.Delay(500);
+        Assert.Equal(begins, receiver.Begins); Assert.Empty(receiver.Uploads); Assert.Empty(receiver.Committed);
+        worker.Retry(); await Until(() => receiver.Scene.ContainsKey("latest"));
+        Assert.False(receiver.Scene.ContainsKey("old")); Assert.Single(receiver.Committed);
       }
       finally { worker.Dispose(); await worker.Completion; }
     }
@@ -98,13 +137,14 @@ namespace OpenProject.Tests.LiveSync
       public ConcurrentQueue<string> Committed { get; } = new();
       public TaskCompletionSource<bool> Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
       public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-      public bool BlockFirst, Reject;
+      public bool BlockFirst, Reject, Waiting;
       public int Begins;
       public string FirstJob;
       public Task<ReceiverStatus> StatusAsync(CancellationToken token) => Task.FromResult(_status);
       public Task<RemoteJob> BeginAsync(SyncJob job, CancellationToken token)
       {
-        Begins++; if (Reject) throw new ReceiverException(413);
+        Begins++; if (Waiting) return Task.FromResult(new RemoteJob { Waiting = true, PublishingUser = "Otro usuario" });
+        if (Reject) throw new ReceiverException(413);
         FirstJob ??= job.JobId;
         _jobs[job.JobId] = job;
         if (!_parts.ContainsKey(job.JobId)) _parts[job.JobId] = new();

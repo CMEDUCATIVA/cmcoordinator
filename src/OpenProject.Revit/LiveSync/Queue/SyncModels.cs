@@ -13,6 +13,8 @@ namespace OpenProject.Revit.LiveSync.Queue
     public string SessionId { get; set; }
     public long SessionStartedAt { get; set; }
     public string SourceId { get; set; }
+    public string DocumentId { get; set; }
+    public string LegacySourceId { get; set; }
     public string Title { get; set; }
     public string View { get; set; }
     public string BaseRevision { get; set; }

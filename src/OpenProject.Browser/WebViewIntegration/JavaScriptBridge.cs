@@ -89,6 +89,8 @@ namespace OpenProject.Browser.WebViewIntegration
 
     public void SendMessageToRevit(string messageType, string trackingId, string messagePayload)
     {
+      // Session state can only originate in the native cookie/HTTP monitor.
+      if (messageType == MessageTypes.CDE_SESSION_STATUS || messageType == MessageTypes.CHECK_CDE_SESSION) return;
       if (!_isLoaded)
       {
         Log.Warning("Failed to send message to Revit: bridge web browser not loaded");

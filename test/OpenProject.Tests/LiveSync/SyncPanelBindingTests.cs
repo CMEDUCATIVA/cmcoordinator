@@ -29,7 +29,8 @@ namespace OpenProject.Tests.LiveSync
         using var reader = new StreamReader(resource);
         var markup = XDocument.Parse(reader.ReadToEnd());
         markup.Root.Attribute(XName.Get("Class", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Remove();
-        foreach (var attribute in markup.Descendants().Attributes("Click").ToArray()) attribute.Remove();
+        foreach (var attribute in markup.Descendants().Attributes().Where(a =>
+          a.Name.LocalName is "Click" or "TextChanged" or "PasswordChanged").ToArray()) attribute.Remove();
         var panel = (UserControl)XamlReader.Parse(markup.ToString());
         var model = new SyncPanelViewModel();
         panel.DataContext = model;
@@ -45,18 +46,24 @@ namespace OpenProject.Tests.LiveSync
         }, "Diagnóstico local");
         Layout(panel);
         Assert.Equal(50d, progress.Value);
+        Assert.Equal(model.BlockLabel, System.Windows.Automation.AutomationProperties.GetName(progress));
+        Assert.Contains(Descendants(panel).OfType<TextBlock>(), b => b.Text == "2 de 4 bloques recibidos · revisión pendiente");
         Assert.Contains(Descendants(panel).OfType<Button>(), b => (string)b.Content == "▶ Continuar");
         Assert.Contains(Descendants(panel).OfType<TextBlock>(), b => b.Text == "12345678");
         Assert.Contains(Descendants(panel).OfType<TextBlock>(), b => b.Text == "abcdefgh");
 
-        var expander = Descendants(panel).OfType<Expander>().Single();
+        var expander = Descendants(panel).OfType<Expander>().Single(e => (string)e.Header == "Actividad y diagnóstico");
         expander.IsExpanded = true;
         Layout(panel);
-        Assert.Equal("Diagnóstico local", Descendants(panel).OfType<TextBox>().Single().Text);
+        Assert.Equal("Diagnóstico local", Descendants(panel).OfType<TextBox>().Single(t => t.IsReadOnly).Text);
         model.Refresh("Modelo de prueba", "Listo", new SyncProgress { Done = 4, Total = 4 }, "Finalizado");
         Layout(panel);
         Assert.Equal(100d, progress.Value);
-        Assert.Equal("Finalizado", Descendants(panel).OfType<TextBox>().Single().Text);
+        Assert.Contains(Descendants(panel).OfType<TextBlock>(), b => b.Text == "4 de 4 bloques recibidos · revisión pendiente");
+        model.Refresh("Modelo de prueba", "Rechazado", new SyncProgress { Done = 4, Total = 4, Attention = true }, "Finalizado");
+        Layout(panel);
+        Assert.Contains(Descendants(panel).OfType<TextBlock>(), b => b.Text == "4 de 4 bloques recibidos · revisión no aceptada");
+        Assert.Equal("Finalizado", Descendants(panel).OfType<TextBox>().Single(t => t.IsReadOnly).Text);
         panel.DataContext = null;
       });
     }

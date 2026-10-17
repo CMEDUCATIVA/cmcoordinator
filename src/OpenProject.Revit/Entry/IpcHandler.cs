@@ -22,19 +22,22 @@ using System.Threading.Tasks;
 
 namespace OpenProject.Revit.Entry
 {
-  public class IpcHandler
+  public class IpcHandler : IDisposable
   {
     private readonly UIApplication _uiApp;
     private Action<string> _sendData;
-    private static readonly object _callbackStackLock = new();
-    private static readonly Stack<Action> _callbackStack = new();
+    private readonly object _callbackStackLock = new();
+    private readonly Stack<Action> _callbackStack = new();
+    private IpcServer _server;
+    private readonly EventHandler<Autodesk.Revit.UI.Events.IdlingEventArgs> _idleHandler;
+    private bool _disposed;
 
     public IpcHandler(UIApplication uiApp)
     {
       _uiApp = uiApp ?? throw new ArgumentNullException(nameof(uiApp));
       PinsPaneManager.SetUIApplication(uiApp);
 
-      uiApp.Idling += (_, _) =>
+      _idleHandler = (_, _) =>
       {
         lock (_callbackStackLock)
         {
@@ -43,16 +46,20 @@ namespace OpenProject.Revit.Entry
           _callbackStack.Pop().Invoke();
         }
       };
+      uiApp.Idling += _idleHandler;
     }
 
     public int StartLocalServerAndReturnPort()
     {
       var freePort = FreePortHelper.GetFreePort();
-      var server = new IpcServer();
+      var server = _server = new IpcServer();
       server.Start(freePort);
       server.ReceivedRequest += (_, e) =>
       {
-        var eventArgs = JsonConvert.DeserializeObject<WebUiMessageEventArgs>(e.Request);
+        if (_disposed) return;
+        WebUiMessageEventArgs eventArgs;
+        try { eventArgs = JsonConvert.DeserializeObject<WebUiMessageEventArgs>(e.Request); }
+        catch (JsonException) { return; }
         if (eventArgs == null) return;
 
         var localMessageType = eventArgs.MessageType;
@@ -65,6 +72,9 @@ namespace OpenProject.Revit.Entry
           {
             switch (localMessageType)
             {
+              case MessageTypes.CDE_SESSION_STATUS:
+                CdeAccessController.Receive(localTrackingId, localMessagePayload);
+                break;
               case MessageTypes.VIEWPOINT_DATA:
               {
                 try
@@ -178,6 +188,21 @@ namespace OpenProject.Revit.Entry
       var eventArgs = new WebUiMessageEventArgs(MessageTypes.SET_BROWSER_TO_FOREGROUND, "0", string.Empty);
       var jsonEventArgs = JsonConvert.SerializeObject(eventArgs);
       _sendData(jsonEventArgs);
+    }
+
+    public void SendSessionCheckRequest()
+    {
+      var args = new WebUiMessageEventArgs(MessageTypes.CHECK_CDE_SESSION, "0", string.Empty);
+      _sendData?.Invoke(JsonConvert.SerializeObject(args));
+    }
+
+    public void Dispose()
+    {
+      _disposed = true;
+      _uiApp.Idling -= _idleHandler;
+      _server?.Stop();
+      lock (_callbackStackLock) _callbackStack.Clear();
+      _sendData = null;
     }
 
     public void SendOpenUrlRequestToDesktopApp(string url)

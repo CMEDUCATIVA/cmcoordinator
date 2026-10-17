@@ -2,6 +2,8 @@ namespace OpenProject.Shared
 {
   public static class MessageTypes
   {
+    public const string CDE_SESSION_STATUS = "CdeSessionStatus";
+    public const string CHECK_CDE_SESSION = "CheckCdeSession";
     // TODO UPDATE CONST NAMES TO MATCH THEIR DATA -> OTHERWISE CONFUSING
     public const string REVIT_LOADED = "RevitLoaded";
 

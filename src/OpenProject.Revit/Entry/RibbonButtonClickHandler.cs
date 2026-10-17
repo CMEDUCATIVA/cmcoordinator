@@ -15,7 +15,9 @@ namespace OpenProject.Revit.Entry
 {
   public static class RibbonButtonClickHandler
   {
-#if Version2026
+#if Version2027
+    public const string RevitVersion = "2027";
+#elif Version2026
     public const string RevitVersion = "2026";
 #elif Version2025
     public const string RevitVersion = "2025";
@@ -36,14 +38,20 @@ namespace OpenProject.Revit.Entry
     private static Process _opBrowserProcess;
     private static McpSettingsWindow _settingsWindow;
     public static IpcHandler IpcHandler { get; private set; }
+    public static bool IsBrowserRunning => _opBrowserProcess is { HasExited: false };
+
+    public static void OpenBrowser(UIApplication app)
+    {
+      EnsureExternalOpenProjectAppIsRunning(app);
+      IpcHandler.SendBringBrowserToForegroundRequestToDesktopApp();
+      IpcHandler.SendSessionCheckRequest();
+    }
 
     public static Result OpenMainPluginWindow(ExternalCommandData commandData, ref string message)
     {
       try
       {
-        ShowManagementPane(commandData.Application);
-        EnsureExternalOpenProjectAppIsRunning(commandData);
-        IpcHandler.SendBringBrowserToForegroundRequestToDesktopApp();
+        CdeAccessController.Open(commandData.Application);
 
         return Result.Succeeded;
       }
@@ -52,21 +60,6 @@ namespace OpenProject.Revit.Entry
         message = exception.Message;
         Log.Error(exception, message);
         return Result.Failed;
-      }
-    }
-
-    private static void ShowManagementPane(UIApplication uiApp)
-    {
-      try
-      {
-        var pane = uiApp.GetDockablePane(PinsPaneManager.PaneId);
-        if (!pane.IsShown())
-          pane.Show();
-      }
-      catch (Exception ex)
-      {
-        // Keep browser workflow available even if pane activation fails.
-        Log.Warning(ex, "Could not show management pane.");
       }
     }
 
@@ -99,10 +92,10 @@ namespace OpenProject.Revit.Entry
       _settingsWindow.Activate();
     }
 
-    private static void EnsureExternalOpenProjectAppIsRunning(ExternalCommandData commandData)
+    private static void EnsureExternalOpenProjectAppIsRunning(UIApplication app)
     {
       //Version check
-      if (!commandData.Application.Application.VersionName.Contains(RevitVersion))
+      if (!app.Application.VersionName.Contains(RevitVersion))
       {
         MessageHandler.ShowWarning(
           "Unexpected version",
@@ -113,7 +106,10 @@ namespace OpenProject.Revit.Entry
       if (_opBrowserProcess is { HasExited: false })
         return;
 
-      IpcHandler = new IpcHandler(commandData.Application);
+      IpcHandler?.Dispose();
+      var nonce = Guid.NewGuid().ToString("N");
+      CdeAccessController.BeginBrowser(nonce);
+      IpcHandler = new IpcHandler(app);
       var revitServerPort = IpcHandler.StartLocalServerAndReturnPort();
 
       var openProjectBrowserExecutablePath = GetOpenProjectBrowserExecutable();
@@ -123,7 +119,7 @@ namespace OpenProject.Revit.Entry
           string.Join(", ", GetOpenProjectBrowserExecutableCandidates()));
 
       var opBrowserServerPort = FreePortHelper.GetFreePort();
-      var processArguments = $"ipc {opBrowserServerPort} {revitServerPort}";
+      var processArguments = $"ipc {opBrowserServerPort} {revitServerPort} session {nonce}";
       _opBrowserProcess = Process.Start(openProjectBrowserExecutablePath, processArguments);
       IpcHandler.StartLocalClient(opBrowserServerPort);
       PinsPaneManager.PushCurrentPinsToDesktopApp();
@@ -154,6 +150,7 @@ namespace OpenProject.Revit.Entry
       finally
       {
         _opBrowserProcess = null;
+        IpcHandler?.Dispose();
         IpcHandler = null;
       }
     }

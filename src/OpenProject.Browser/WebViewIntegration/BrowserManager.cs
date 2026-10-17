@@ -43,30 +43,9 @@ namespace OpenProject.Browser.WebViewIntegration
       // Remove the "Revit Add-In settings" div on every page
       Browser.FrameLoadEnd += BrowserOnFrameLoadEnd_RemoveRevitSettingsDiv;
 
-      // Injected target URLs
-      var injectBase = "https://cmproyectos.cmeducativa.es";
-      var injectUrl = "https://cmproyectos.cmeducativa.es/login?back_url=https%3A%2F%2Fcmproyectos.cmeducativa.es%2F";
-
-      var knownGoodUrls = ConfigurationHandler.Settings.GetOpenProjectInstances();
-      var lastVisitedPage = ConfigurationHandler.LastVisitedPage();
-      var isWhiteListedUrl = knownGoodUrls.Any(goodUrl =>
-        lastVisitedPage.StartsWith(goodUrl, StringComparison.InvariantCultureIgnoreCase));
-
-      // If nothing valid is persisted, seed it with our injected values
-      if (string.IsNullOrWhiteSpace(lastVisitedPage) || !isWhiteListedUrl)
-      {
-        // 1) Ensure base instance is whitelisted so StartsWith() passes
-        ConfigurationHandler.SaveSelectedInstance(injectBase);
-        // 2) Persist the login URL as the last visited page
-        ConfigurationHandler.SaveLastVisitedPage(injectUrl);
-
-        // Update local variables for this run
-        lastVisitedPage = injectUrl;
-        isWhiteListedUrl = true;
-      }
-
-      Browser.Address =
-        isWhiteListedUrl ? lastVisitedPage : EmbeddedLandingPageHandler.GetEmbeddedLandingPageIndexUrl();
+      // Always start on the canonical CDE; Cef retains the user's session cookies.
+      ConfigurationHandler.SaveSelectedInstance(OpenProject.Shared.Authentication.CdeSessionPolicy.Origin);
+      Browser.Address = OpenProject.Shared.Authentication.CdeSessionPolicy.Home;
 
       Browser.DownloadHandler = _downloadHandler;
       // This handles checking of valid urls, otherwise they're opened in
@@ -104,16 +83,6 @@ namespace OpenProject.Browser.WebViewIntegration
           }
         });
 
-      if (!ConfigurationHandler.Settings.EnableDevelopmentTools) return;
-
-      var devToolsEnabled = false;
-      Browser.IsBrowserInitializedChanged += (s, e) =>
-      {
-        if (devToolsEnabled) return;
-
-        Browser.ShowDevTools();
-        devToolsEnabled = true;
-      };
     }
 
     // Injects JS after the main frame finishes loading to remove the target div

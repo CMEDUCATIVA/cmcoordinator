@@ -113,7 +113,8 @@ namespace OpenProject.Revit.LiveSync.Capture
       _changed = false; Description = $"Captura al día · {_elements.Count} elementos";
       _captureClock.Stop();
       _log.Emit("capture", "CAPTURE_READY", "Captura completada y entregada al almacenamiento local", durationMs: _captureClock.ElapsedMilliseconds, elements: _elements.Count);
-      return new LiveSnapshot(_source, _document.Title, _view.Name, _elements, Bim.BimCatalog.Read(_document, _view, _elements.Values));
+      return new LiveSnapshot(_source, _document.Title, _view.Name, _elements, Bim.BimCatalog.Read(_document, _view, _elements.Values),
+        _document.ProjectInformation.UniqueId, SourceIdentity.LegacyRead(_document));
     }
     private static int Vertices(LiveElement element) => element.Meshes.Sum(mesh => mesh.Positions.Length / 3);
   }

@@ -24,8 +24,23 @@
   <StackPanel Margin="18">
    <TextBlock Text="Cmcoordinator · Revit en vivo" Style="{StaticResource Caption}"/>
    <TextBlock Text="Centro de sincronización" FontSize="19" FontWeight="Medium" Margin="0,5,0,16" TextWrapping="Wrap"/>
+   <TextBlock Text="{Binding CdeSession,Mode=OneWay}" Style="{StaticResource Caption}" Margin="0,0,0,12" AutomationProperties.LiveSetting="Polite"/>
    <TextBlock Text="{Binding Model,Mode=OneWay}" FontWeight="Medium" TextWrapping="Wrap"/>
-   <TextBlock Text="Vista 3D → visor local · protocolo 2" Style="{StaticResource Caption}" Margin="0,4,0,12"/>
+   <TextBlock x:Name="DestinationText" Text="Vista 3D → visor local · protocolo 2" Style="{StaticResource Caption}" Margin="0,4,0,12"/>
+   <Expander Header="Conectar con el CDE" Margin="0,0,0,12" Foreground="{DynamicResource PanelText}">
+    <StackPanel Margin="0,10,0,0">
+     <TextBlock Text="Enlace generado en BCF → Conectar a Revit" Style="{StaticResource Caption}"/>
+     <TextBox x:Name="CdeLink" TextChanged="ConnectionChanged" MinHeight="34" Margin="0,5,0,10" Padding="7" TextWrapping="Wrap" AutomationProperties.Name="Enlace de conexión CDE"
+       Background="{DynamicResource PanelSurface}" Foreground="{DynamicResource PanelText}" BorderBrush="{DynamicResource PanelBorder}"/>
+     <TextBlock Text="Token de conexión" Style="{StaticResource Caption}"/>
+     <PasswordBox x:Name="CdeToken" PasswordChanged="ConnectionChanged" MinHeight="34" Margin="0,5,0,10" Padding="7" AutomationProperties.Name="Token de conexión CDE"
+       Background="{DynamicResource PanelSurface}" Foreground="{DynamicResource PanelText}" BorderBrush="{DynamicResource PanelBorder}"/>
+     <WrapPanel><Button x:Name="TestConnectionButton" Content="Probar conexión" Click="TestConnectionClick"/>
+      <Button x:Name="ConnectCdeButton" Content="Conectar" Click="ConnectCdeClick" IsEnabled="False"/>
+      <Button Content="Usar visor local" Click="UseLocalClick"/></WrapPanel>
+     <TextBlock x:Name="ConnectionResult" Text="Pega el enlace y token del proyecto. La prueba no envía el modelo." Style="{StaticResource Caption}" AutomationProperties.LiveSetting="Polite"/>
+    </StackPanel>
+   </Expander>
    <WrapPanel>
     <Button Content="↻ Sincronizar" Tag="sync" Click="ActionClick" Background="{DynamicResource PanelAccent}" Foreground="{DynamicResource AccentText}"/>
     <Button Content="{Binding PauseLabel,Mode=OneWay}" Tag="pause" Click="ActionClick"/>
@@ -35,8 +50,8 @@
     <StackPanel>
      <TextBlock Text="{Binding Status.Stage,Mode=OneWay}" FontWeight="Medium" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
      <TextBlock Text="{Binding Status.Detail,Mode=OneWay}" Style="{StaticResource Caption}" Margin="0,6,0,10"/>
-     <ProgressBar Value="{Binding Status.Percent,Mode=OneWay}" Maximum="100" Height="6" Foreground="{DynamicResource PanelAccent}" AutomationProperties.Name="Lotes guardados en destino"/>
-     <TextBlock Style="{StaticResource Caption}" Margin="0,6,0,0"><Run Text="{Binding Status.Done,Mode=OneWay}"/><Run Text=" de "/><Run Text="{Binding Status.Total,Mode=OneWay}"/><Run Text=" lotes confirmados"/></TextBlock>
+     <ProgressBar Value="{Binding Status.Percent,Mode=OneWay}" Maximum="100" Height="6" Foreground="{DynamicResource PanelAccent}" AutomationProperties.Name="{Binding BlockLabel,Mode=OneWay}"/>
+     <TextBlock Style="{StaticResource Caption}" Margin="0,6,0,0" Text="{Binding BlockLabel,Mode=OneWay}" TextWrapping="Wrap"/>
     </StackPanel>
    </Border>
    <TextBlock Text="{Binding Capture,Mode=OneWay}" Style="{StaticResource Caption}" Margin="0,0,0,14"/>

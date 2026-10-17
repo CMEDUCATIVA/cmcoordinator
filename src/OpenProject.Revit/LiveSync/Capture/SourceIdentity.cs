@@ -6,7 +6,8 @@ namespace OpenProject.Revit.LiveSync.Capture
 {
   internal static class SourceIdentity
   {
-    public static string Read(Document document)
+    public static string Read(Document document) => DocumentIdentityKey.Create(document.ProjectInformation.UniqueId);
+    public static string LegacyRead(Document document)
     {
       string location;
       if (document.IsModelInCloud)

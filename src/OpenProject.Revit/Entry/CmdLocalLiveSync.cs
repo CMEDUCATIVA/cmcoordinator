@@ -13,6 +13,8 @@ namespace OpenProject.Revit.Entry
     {
       try
       {
+        if (!CdeAccessController.CanUseLocalSync)
+        { CdeAccessController.Open(data.Application); return Result.Succeeded; }
         LocalLiveSync.Start(data.Application);
         return Result.Succeeded;
       }
