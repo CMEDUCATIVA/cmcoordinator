@@ -3,55 +3,55 @@
 #define AppPublisher "Cmcoordinator"
 #define AddinName "Cmcoordinator"
 #define BuildStamp GetDateTimeString('yyyymmdd-hhnnss', '-', ':')
-#define BrowserBinariesSource "..\src\OpenProject.Browser\bin\x64\Debug-2026\net48\*"
+#define BrowserBinariesSource "..\src\OpenProject.Browser\bin\x64\Release-2026\net48\*"
 #define AddinManifestSource "..\src\OpenProject.Revit\Cmcoordinator.addin"
 #define AppIdValue "{{D22B2A9A-2C49-4C3A-8F8B-6AC9A2E6A026}"
 #define UninstallRegKey "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{D22B2A9A-2C49-4C3A-8F8B-6AC9A2E6A026}_is1"
 
-#if FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2019\net472\OpenProject.Revit.dll")
+#if !Defined(ReleaseCurrentOnly) && FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2019\net472\OpenProject.Revit.dll")
   #define HasRevit2019
   #define AppVersion GetVersionNumbersString("..\src\OpenProject.Revit\bin\x64\Debug-2019\net472\OpenProject.Revit.dll")
 #endif
-#if !Defined(AppVersion) && FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2020\net472\OpenProject.Revit.dll")
+#if !Defined(ReleaseCurrentOnly) && !Defined(AppVersion) && FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2020\net472\OpenProject.Revit.dll")
   #define HasRevit2020
   #define AppVersion GetVersionNumbersString("..\src\OpenProject.Revit\bin\x64\Debug-2020\net472\OpenProject.Revit.dll")
 #endif
-#if FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2020\net472\OpenProject.Revit.dll")
+#if !Defined(ReleaseCurrentOnly) && FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2020\net472\OpenProject.Revit.dll")
   #define HasRevit2020
 #endif
-#if FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2021\net48\OpenProject.Revit.dll")
+#if !Defined(ReleaseCurrentOnly) && FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2021\net48\OpenProject.Revit.dll")
   #define HasRevit2021
   #if !Defined(AppVersion)
     #define AppVersion GetVersionNumbersString("..\src\OpenProject.Revit\bin\x64\Debug-2021\net48\OpenProject.Revit.dll")
   #endif
 #endif
-#if FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2022\net48\OpenProject.Revit.dll")
+#if !Defined(ReleaseCurrentOnly) && FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2022\net48\OpenProject.Revit.dll")
   #define HasRevit2022
   #if !Defined(AppVersion)
     #define AppVersion GetVersionNumbersString("..\src\OpenProject.Revit\bin\x64\Debug-2022\net48\OpenProject.Revit.dll")
   #endif
 #endif
-#if FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2024\net48\OpenProject.Revit.dll")
+#if !Defined(ReleaseCurrentOnly) && FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2024\net48\OpenProject.Revit.dll")
   #define HasRevit2024
   #if !Defined(AppVersion)
     #define AppVersion GetVersionNumbersString("..\src\OpenProject.Revit\bin\x64\Debug-2024\net48\OpenProject.Revit.dll")
   #endif
 #endif
-#if FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2025\net8.0-windows\OpenProject.Revit.dll")
+#if !Defined(ReleaseCurrentOnly) && FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2025\net8.0-windows\OpenProject.Revit.dll")
   #define HasRevit2025
   #if !Defined(AppVersion)
     #define AppVersion GetVersionNumbersString("..\src\OpenProject.Revit\bin\x64\Debug-2025\net8.0-windows\OpenProject.Revit.dll")
   #endif
 #endif
-#if FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2027\net10.0-windows7.0\OpenProject.Revit.dll")
+#if FileExists("..\src\OpenProject.Revit\bin\x64\Release-2027\net10.0-windows7.0\OpenProject.Revit.dll")
   #define HasRevit2027
   #undef AppVersion
-  #define AppVersion GetVersionNumbersString("..\src\OpenProject.Revit\bin\x64\Debug-2027\net10.0-windows7.0\OpenProject.Revit.dll")
+  #define AppVersion GetVersionNumbersString("..\src\OpenProject.Revit\bin\x64\Release-2027\net10.0-windows7.0\OpenProject.Revit.dll")
 #endif
-#if FileExists("..\src\OpenProject.Revit\bin\x64\Debug-2026\net8.0-windows\OpenProject.Revit.dll")
+#if FileExists("..\src\OpenProject.Revit\bin\x64\Release-2026\net8.0-windows\OpenProject.Revit.dll")
   #define HasRevit2026
   #undef AppVersion
-  #define AppVersion GetVersionNumbersString("..\src\OpenProject.Revit\bin\x64\Debug-2026\net8.0-windows\OpenProject.Revit.dll")
+  #define AppVersion GetVersionNumbersString("..\src\OpenProject.Revit\bin\x64\Release-2026\net8.0-windows\OpenProject.Revit.dll")
 #endif
 #if !Defined(AppVersion)
   #error No se encontraron binarios de OpenProject.Revit para crear el instalador.
@@ -69,7 +69,11 @@ DisableProgramGroupPage=yes
 DisableReadyMemo=no
 DisableWelcomePage=no
 OutputDir={#RepoRoot}\output\installer
+#if Defined(ReleaseTag)
+OutputBaseFilename=Cmcoordinator-{#ReleaseTag}-setup
+#else
 OutputBaseFilename=Cmcoordinator-Revit-Addin-Setup-{#BuildStamp}
+#endif
 SetupIconFile={#RepoRoot}\Assets\CMicon.ico
 WizardImageFile={#RepoRoot}\Assets\Cmcoordinator_LOGO.bmp
 Compression=lzma
@@ -176,12 +180,12 @@ Source: "{#BrowserBinariesSource}"; DestDir: "{code:GetBrowserTargetForYear|2025
 #endif
 #if Defined(HasRevit2027)
 Source: "..\src\OpenProject.Revit\Cmcoordinator.addin"; DestDir: "{code:GetInstallTargetForYear|2027}"; DestName: "{#AddinName}.addin"; Flags: ignoreversion; Components: revit2027
-Source: "..\src\OpenProject.Revit\bin\x64\Debug-2027\net10.0-windows7.0\*"; DestDir: "{code:GetPluginTargetForYear|2027}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: revit2027
+Source: "..\src\OpenProject.Revit\bin\x64\Release-2027\net10.0-windows7.0\*"; DestDir: "{code:GetPluginTargetForYear|2027}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: revit2027
 Source: "{#BrowserBinariesSource}"; DestDir: "{code:GetBrowserTargetForYear|2027}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: revit2027
 #endif
 #if Defined(HasRevit2026)
 Source: "..\src\OpenProject.Revit\Cmcoordinator.addin"; DestDir: "{code:GetInstallTargetForYear|2026}"; DestName: "{#AddinName}.addin"; Flags: ignoreversion; Components: revit2026
-Source: "..\src\OpenProject.Revit\bin\x64\Debug-2026\net8.0-windows\*"; DestDir: "{code:GetPluginTargetForYear|2026}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: revit2026
+Source: "..\src\OpenProject.Revit\bin\x64\Release-2026\net8.0-windows\*"; DestDir: "{code:GetPluginTargetForYear|2026}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: revit2026
 Source: "{#BrowserBinariesSource}"; DestDir: "{code:GetBrowserTargetForYear|2026}"; Flags: ignoreversion recursesubdirs createallsubdirs; Components: revit2026
 #endif
 
