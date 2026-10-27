@@ -8,14 +8,14 @@ namespace OpenProject.Browser.WebViewIntegration
 {
   public sealed class CdeSessionProbe
   {
-    public async Task<CdeSessionObservation> CheckAsync(HttpClient client, string cookies, CancellationToken cancel)
+    public async Task<CdeSessionObservation> CheckAsync(HttpClient client, string cookies, string origin, CancellationToken cancel)
     {
-      using var request = new HttpRequestMessage(HttpMethod.Get, CdeSessionPolicy.CurrentUser);
+      using var request = new HttpRequestMessage(HttpMethod.Get, CdeSessionPolicy.CurrentUser(origin));
       request.Headers.Accept.ParseAdd("application/hal+json");
       request.Headers.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true, NoStore = true };
       if (!string.IsNullOrEmpty(cookies)) request.Headers.TryAddWithoutValidation("Cookie", cookies);
       using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancel).ConfigureAwait(false);
-      if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized) return new CdeSessionObservation(CdeSessionStatus.SignedOut);
+      if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized) return new CdeSessionObservation(CdeSessionStatus.SignedOut, origin: origin);
       if (response.StatusCode != System.Net.HttpStatusCode.OK || response.Content.Headers.ContentLength > 65536)
         return new CdeSessionObservation(CdeSessionStatus.Unavailable);
       var media = response.Content.Headers.ContentType?.MediaType;
@@ -29,7 +29,7 @@ namespace OpenProject.Browser.WebViewIntegration
         memory.Write(buffer, 0, count);
       }
       var userId = CdeSessionPolicy.ReadUser(System.Text.Encoding.UTF8.GetString(memory.ToArray()));
-      return userId > 0 ? new CdeSessionObservation(CdeSessionStatus.Authenticated, userId)
+      return userId > 0 ? new CdeSessionObservation(CdeSessionStatus.Authenticated, userId, origin)
         : new CdeSessionObservation(CdeSessionStatus.Unavailable);
     }
   }

@@ -12,10 +12,14 @@ namespace OpenProject.Revit.LiveSync.Bim
       var result = new List<BimParameter>();
       foreach (Parameter parameter in element.Parameters)
       {
+        // A parameter without a value carries no information for the CDE; IFC publication already skipped it.
+        if (!parameter.HasValue) continue;
         var item = new BimParameter { Id = parameter.Id.ToString(), Name = parameter.Definition.Name,
           Storage = parameter.StorageType.ToString(), ReadOnly = parameter.IsReadOnly, HasValue = parameter.HasValue,
           SharedGuid = parameter.IsShared ? parameter.GUID.ToString() : null,
-          SpecId = parameter.Definition.GetDataType().TypeId };
+          SpecId = RevitCompat.SpecId(parameter.Definition) };
+        item.GroupId = RevitCompat.GroupId(parameter.Definition);
+        item.GroupName = RevitCompat.GroupLabel(parameter.Definition);
         if (parameter.HasValue)
         {
           item.Display = parameter.AsValueString();
@@ -25,15 +29,15 @@ namespace OpenProject.Revit.LiveSync.Bim
             case StorageType.Integer: item.Value = parameter.AsInteger(); break;
             case StorageType.Double:
               var raw = parameter.AsDouble();
-              if (!double.IsFinite(raw)) throw new InvalidOperationException("Un parámetro contiene un número no finito.");
+              if (!NetCompat.IsFinite(raw)) throw new InvalidOperationException("Un parámetro contiene un número no finito.");
               item.Value = raw;
               var spec = item.SpecId ?? "";
               if (spec.Contains(":length-")) item.SiValue = raw * 0.3048;
               else if (spec.Contains(":area-")) item.SiValue = raw * 0.3048 * 0.3048;
               else if (spec.Contains(":volume-")) item.SiValue = raw * 0.3048 * 0.3048 * 0.3048;
               else if (spec.Contains(":angle-")) item.SiValue = raw;
-              if (UnitUtils.IsMeasurableSpec(parameter.Definition.GetDataType()))
-              { var unit = parameter.GetUnitTypeId(); item.UnitId = unit.TypeId; item.DisplayUnitValue = UnitUtils.ConvertFromInternalUnits(raw, unit); }
+              if (RevitCompat.TryDisplayUnit(parameter, raw, out var unitId, out var shown))
+              { item.UnitId = unitId; item.DisplayUnitValue = shown; }
               break;
             case StorageType.ElementId:
               var id = parameter.AsElementId(); item.Value = id.ToString();

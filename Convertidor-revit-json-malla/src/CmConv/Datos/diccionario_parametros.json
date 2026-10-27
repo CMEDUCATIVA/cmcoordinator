@@ -1,0 +1,1820 @@
+{
+"-1140363": {
+"name": "Categoría",
+"group": "Otros",
+"storage": "ElementId",
+"spec": ""
+},
+"-1140362": {
+"name": "Categoría",
+"group": "Otros",
+"storage": "ElementId",
+"spec": ""
+},
+"-1019012": {
+"name": "Exportar a IFC",
+"group": "Parámetros IFC",
+"storage": "Integer",
+"spec": ""
+},
+"-1019000": {
+"name": "IfcGUID",
+"group": "Parámetros IFC",
+"storage": "String",
+"spec": "autodesk.spec:spec.string-2.0.0"
+},
+"-1013440": {
+"name": "Recubrimiento de armadura",
+"group": "Estructura",
+"storage": "ElementId",
+"spec": ""
+},
+"-1013201": {
+"name": "Opción de diseño",
+"group": "Datos de identidad",
+"storage": "ElementId",
+"spec": ""
+},
+"-1012827": {
+"name": "Desfase de perfil vertical",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1012825": {
+"name": "Desfase de perfil horizontal",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1012806": {
+"name": "Volumen",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:volume-2.0.0"
+},
+"-1012101": {
+"name": "Fase de derribo",
+"group": "Proceso por fases",
+"storage": "ElementId",
+"spec": ""
+},
+"-1012100": {
+"name": "Fase de creación",
+"group": "Proceso por fases",
+"storage": "ElementId",
+"spec": ""
+},
+"-1004005": {
+"name": "Longitud",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1002052": {
+"name": "Familia y tipo",
+"group": "Otros",
+"storage": "ElementId",
+"spec": ""
+},
+"-1002051": {
+"name": "Familia",
+"group": "Otros",
+"storage": "ElementId",
+"spec": ""
+},
+"-1002050": {
+"name": "Tipo",
+"group": "Otros",
+"storage": "ElementId",
+"spec": ""
+},
+"-1002000": {
+"name": "ID de tipo",
+"group": "Otros",
+"storage": "ElementId",
+"spec": ""
+},
+"-1001817": {
+"name": "Ángulo",
+"group": "Perfil",
+"storage": "Double",
+"spec": "autodesk.spec.aec:angle-2.0.0"
+},
+"-1152383": {
+"name": "Estado de unión",
+"group": "Posición geométrica",
+"storage": "Integer",
+"spec": ""
+},
+"-1152365": {
+"name": "Valor de desfase Z",
+"group": "Posición geométrica",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1152364": {
+"name": "Justificación Z",
+"group": "Posición geométrica",
+"storage": "Integer",
+"spec": ""
+},
+"-1152363": {
+"name": "Valor de desfase Y",
+"group": "Posición geométrica",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1152362": {
+"name": "Justificación Y",
+"group": "Posición geométrica",
+"storage": "Integer",
+"spec": ""
+},
+"-1152361": {
+"name": "Justificación YZ",
+"group": "Posición geométrica",
+"storage": "Integer",
+"spec": ""
+},
+"-1152360": {
+"name": "Reducción de junta final",
+"group": "Posición geométrica",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1152359": {
+"name": "Reducción de junta inicial",
+"group": "Posición geométrica",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1152358": {
+"name": "Extensión final",
+"group": "Posición geométrica",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1152357": {
+"name": "Extensión inicial",
+"group": "Posición geométrica",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1013449": {
+"name": "Tiene asociación",
+"group": "Datos de identidad",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"-1013439": {
+"name": "Recubrimiento de armadura - Cara inferior",
+"group": "Estructura",
+"storage": "ElementId",
+"spec": ""
+},
+"-1013438": {
+"name": "Recubrimiento de armadura - Cara superior",
+"group": "Estructura",
+"storage": "ElementId",
+"spec": ""
+},
+"-1013437": {
+"name": "Recubrimiento de armadura - Otras caras",
+"group": "Estructura",
+"storage": "ElementId",
+"spec": ""
+},
+"-1005500": {
+"name": "Material estructural",
+"group": "Materiales y acabados",
+"storage": "ElementId",
+"spec": "autodesk.spec.aec:material-1.0.0"
+},
+"-1002108": {
+"name": "ID de anfitrión",
+"group": "Otros",
+"storage": "ElementId",
+"spec": ""
+},
+"-1002062": {
+"name": "Nivel",
+"group": "Restricciones",
+"storage": "ElementId",
+"spec": ""
+},
+"-1001653": {
+"name": "Elevación de nivel de referencia",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001598": {
+"name": "Elevación en parte superior",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001586": {
+"name": "Rotación de sección transversal",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:angle-2.0.0"
+},
+"-1001572": {
+"name": "Desfase de nivel final",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001571": {
+"name": "Desfase de nivel inicial",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001561": {
+"name": "Elevación en parte inferior",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001384": {
+"name": "Longitud de corte",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001383": {
+"name": "Nivel de referencia",
+"group": "Restricciones",
+"storage": "ElementId",
+"spec": ""
+},
+"-1001381": {
+"name": "Uso estructural",
+"group": "Estructura",
+"storage": "Integer",
+"spec": ""
+},
+"-1001375": {
+"name": "Longitud del sistema",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"218497": {
+"name": "Start Extension",
+"group": "Construcción",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"218498": {
+"name": "End Extension",
+"group": "Construcción",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"218508": {
+"name": "Start Extension Calculation",
+"group": "Otros",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"218509": {
+"name": "End Extension Calculation",
+"group": "Otros",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"-1001370": {
+"name": "Se mueve con elementos cercanos",
+"group": "Restricciones",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"-1001364": {
+"name": "Desfase desde el anfitrión",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001363": {
+"name": "Anfitrión",
+"group": "Restricciones",
+"storage": "String",
+"spec": "autodesk.spec:spec.string-2.0.0"
+},
+"-1001360": {
+"name": "Elevación desde el nivel",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001352": {
+"name": "Nivel",
+"group": "Restricciones",
+"storage": "ElementId",
+"spec": ""
+},
+"-1012805": {
+"name": "Área",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:area-2.0.0"
+},
+"-1010303": {
+"name": "ID de anfitrión",
+"group": "Otros",
+"storage": "ElementId",
+"spec": ""
+},
+"-1010301": {
+"name": "Anchura",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1010300": {
+"name": "Altura",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001301": {
+"name": "Anchura",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001300": {
+"name": "Altura",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001203": {
+"name": "Marca",
+"group": "Datos de identidad",
+"storage": "String",
+"spec": "autodesk.spec:spec.string-2.0.0"
+},
+"217757": {
+"name": "Hinge Set",
+"group": "Otros",
+"storage": "String",
+"spec": "autodesk.spec:spec.string-2.0.0"
+},
+"217759": {
+"name": "Lock Function",
+"group": "Otros",
+"storage": "String",
+"spec": "autodesk.spec:spec.string-2.0.0"
+},
+"217765": {
+"name": "Stop",
+"group": "Otros",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"217767": {
+"name": "Kickplates",
+"group": "Otros",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"217769": {
+"name": "Hold Open",
+"group": "Otros",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"217771": {
+"name": "Hardware Group",
+"group": "Datos de identidad",
+"storage": "ElementId",
+"spec": ""
+},
+"-1006016": {
+"name": "Pendiente",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:slope-2.0.0"
+},
+"-1001713": {
+"name": "Relacionado con masa",
+"group": "Restricciones",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"-1001711": {
+"name": "Profundidad de imposta",
+"group": "Construcción",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001710": {
+"name": "Corte de alero",
+"group": "Construcción",
+"storage": "Integer",
+"spec": ""
+},
+"-1001709": {
+"name": "Alero o viga de celosía",
+"group": "Construcción",
+"storage": "Integer",
+"spec": ""
+},
+"-1001708": {
+"name": "Nivel base",
+"group": "Restricciones",
+"storage": "ElementId",
+"spec": ""
+},
+"-1001705": {
+"name": "Altura de cumbrera máxima",
+"group": "Construcción",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001703": {
+"name": "Desfase del límite",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001702": {
+"name": "Nivel del límite",
+"group": "Restricciones",
+"storage": "ElementId",
+"spec": ""
+},
+"-1001701": {
+"name": "Desfase base desde nivel",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001601": {
+"name": "Grosor",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001007": {
+"name": "Delimitación de habitación",
+"group": "Restricciones",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"-1001362": {
+"name": "Altura de extremo inicial",
+"group": "Otros",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001361": {
+"name": "Altura de antepecho",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001365": {
+"name": "Nivel de tabla de planificación",
+"group": "Restricciones",
+"storage": "ElementId",
+"spec": ""
+},
+"-1152300": {
+"name": "Desfase de ruta",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1008621": {
+"name": "Desfase de base",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1008620": {
+"name": "Nivel base",
+"group": "Restricciones",
+"storage": "ElementId",
+"spec": ""
+},
+"-1019100": {
+"name": "Sección transversal",
+"group": "Definición de sección transversal",
+"storage": "Integer",
+"spec": ""
+},
+"-1012829": {
+"name": "Distancia de extensión de base",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1012828": {
+"name": "Distancia de extensión superior",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001596": {
+"name": "Estructura",
+"group": "Estructura",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"-1001122": {
+"name": "Línea de ubicación",
+"group": "Restricciones",
+"storage": "Integer",
+"spec": ""
+},
+"-1001119": {
+"name": "Uso estructural",
+"group": "Estructura",
+"storage": "Integer",
+"spec": ""
+},
+"-1001118": {
+"name": "La base está enlazada",
+"group": "Restricciones",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"-1001117": {
+"name": "La parte superior está enlazada",
+"group": "Restricciones",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"-1001109": {
+"name": "Desfase superior",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001108": {
+"name": "Desfase de base",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001107": {
+"name": "Restricción de base",
+"group": "Restricciones",
+"storage": "ElementId",
+"spec": ""
+},
+"-1001105": {
+"name": "Altura desconectada",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001103": {
+"name": "Restricción superior",
+"group": "Restricciones",
+"storage": "ElementId",
+"spec": ""
+},
+"-1155127": {
+"name": "Peso exacto",
+"group": "Estructura",
+"storage": "Double",
+"spec": "autodesk.spec.aec.structural:mass-2.0.0"
+},
+"-1155125": {
+"name": "Área de pintura",
+"group": "Estructura",
+"storage": "Double",
+"spec": "autodesk.spec.aec:area-2.0.0"
+},
+"-1155124": {
+"name": "Peso",
+"group": "Estructura",
+"storage": "Double",
+"spec": "autodesk.spec.aec.structural:mass-2.0.0"
+},
+"-1150171": {
+"name": "Estilo de pilar",
+"group": "Restricciones",
+"storage": "Integer",
+"spec": ""
+},
+"-1018804": {
+"name": "Conexión de base",
+"group": "Estructura",
+"storage": "ElementId",
+"spec": ""
+},
+"-1018803": {
+"name": "Conexión de parte superior",
+"group": "Estructura",
+"storage": "ElementId",
+"spec": ""
+},
+"-1002563": {
+"name": "Marca de ubicación de pilar",
+"group": "Restricciones",
+"storage": "String",
+"spec": ""
+},
+"-1002559": {
+"name": "La parte superior está enlazada",
+"group": "Restricciones",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"-1002557": {
+"name": "Desfase desde enlace en parte superior",
+"group": "Construcción",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1002555": {
+"name": "Justificación de enlace en parte superior",
+"group": "Construcción",
+"storage": "Integer",
+"spec": ""
+},
+"-1002066": {
+"name": "Desfase superior",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1002065": {
+"name": "Desfase de base",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1002064": {
+"name": "Nivel superior",
+"group": "Restricciones",
+"storage": "ElementId",
+"spec": ""
+},
+"-1002063": {
+"name": "Nivel base",
+"group": "Restricciones",
+"storage": "ElementId",
+"spec": ""
+},
+"-1001371": {
+"name": "Se mueve con rejillas",
+"group": "Restricciones",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"-1001358": {
+"name": "Desfase superior",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001357": {
+"name": "Desfase de base",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001351": {
+"name": "Nivel superior",
+"group": "Restricciones",
+"storage": "ElementId",
+"spec": ""
+},
+"-1001350": {
+"name": "Nivel base",
+"group": "Restricciones",
+"storage": "ElementId",
+"spec": ""
+},
+"-1150215": {
+"name": "Tipo de enlace final",
+"group": "Estructura",
+"storage": "Integer",
+"spec": ""
+},
+"-1150214": {
+"name": "Tipo de enlace inicial",
+"group": "Estructura",
+"storage": "Integer",
+"spec": ""
+},
+"-1018802": {
+"name": "Conexión de fin",
+"group": "Estructura",
+"storage": "ElementId",
+"spec": ""
+},
+"-1018801": {
+"name": "Conexión de inicio",
+"group": "Estructura",
+"storage": "ElementId",
+"spec": ""
+},
+"-1001503": {
+"name": "Ubicación de símbolo de barras",
+"group": "Estructura",
+"storage": "Integer",
+"spec": ""
+},
+"207335": {
+"name": "Start Extension",
+"group": "Construcción",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"207336": {
+"name": "End Extension",
+"group": "Construcción",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"207337": {
+"name": "Start Extension Calculation",
+"group": "Otros",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"207338": {
+"name": "End Extension Calculation",
+"group": "Otros",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"-1140757": {
+"name": "Etiquetar nuevos elementos en vista",
+"group": "Datos de identidad",
+"storage": "ElementId",
+"spec": ""
+},
+"-1013431": {
+"name": "Espaciado fijo",
+"group": "Patrón",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1013427": {
+"name": "No planas",
+"group": "Restricciones",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"-1013419": {
+"name": "Tipo de viga (sin nombre de familia)",
+"group": "Patrón",
+"storage": "ElementId",
+"spec": ""
+},
+"-1013411": {
+"name": "Tipo de viga",
+"group": "Patrón",
+"storage": "ElementId",
+"spec": ""
+},
+"-1013410": {
+"name": "Regla de diseño",
+"group": "Patrón",
+"storage": "Integer",
+"spec": ""
+},
+"-1013409": {
+"name": "Justificación",
+"group": "Patrón",
+"storage": "Integer",
+"spec": ""
+},
+"-1013408": {
+"name": "Espaciado de eje",
+"group": "Patrón",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001380": {
+"name": "Plano de trabajo",
+"group": "Restricciones",
+"storage": "String",
+"spec": "autodesk.spec:spec.string-2.0.0"
+},
+"-1001573": {
+"name": "Orientación",
+"group": "Restricciones",
+"storage": "Integer",
+"spec": ""
+},
+"208699": {
+"name": "Panel",
+"group": "Otros",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"208700": {
+"name": "PanelArrayNum",
+"group": "Otros",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.int64-2.0.0"
+},
+"208701": {
+"name": "PanelArrayLength",
+"group": "Otros",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"208702": {
+"name": "Start Extension",
+"group": "Construcción",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"209146": {
+"name": "PanelWidth",
+"group": "Otros",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"210011": {
+"name": "End Extension",
+"group": "Construcción",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"210014": {
+"name": "Start Offset",
+"group": "Construcción",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"210015": {
+"name": "End Offset",
+"group": "Construcción",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"-1001954": {
+"name": "Estructura",
+"group": "Estructura",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"-1001953": {
+"name": "Perímetro",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001952": {
+"name": "Nivel",
+"group": "Restricciones",
+"storage": "ElementId",
+"spec": ""
+},
+"-1001951": {
+"name": "Desfase de altura desde nivel",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001900": {
+"name": "Grosor",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001655": {
+"name": "Elevación en parte inferior de núcleo",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001654": {
+"name": "Elevación en parte superior de núcleo",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1013313": {
+"name": "Desfase",
+"group": "Rejilla horizontal",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1013312": {
+"name": "Desfase",
+"group": "Rejilla vertical",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1013310": {
+"name": "Ángulo",
+"group": "Rejilla horizontal",
+"storage": "Double",
+"spec": "autodesk.spec.aec:angle-2.0.0"
+},
+"-1013309": {
+"name": "Ángulo",
+"group": "Rejilla vertical",
+"storage": "Double",
+"spec": "autodesk.spec.aec:angle-2.0.0"
+},
+"-1013307": {
+"name": "Número",
+"group": "Rejilla horizontal",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.int64-2.0.0"
+},
+"-1013306": {
+"name": "Número",
+"group": "Rejilla vertical",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.int64-2.0.0"
+},
+"-1013305": {
+"name": "Justificación",
+"group": "Rejilla horizontal",
+"storage": "Integer",
+"spec": ""
+},
+"-1013304": {
+"name": "Justificación",
+"group": "Rejilla vertical",
+"storage": "Integer",
+"spec": ""
+},
+"-1001716": {
+"name": "Desfase de nivel",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001715": {
+"name": "Nivel de referencia",
+"group": "Restricciones",
+"storage": "ElementId",
+"spec": ""
+},
+"-1001714": {
+"name": "Ubicación de caras seleccionadas",
+"group": "Restricciones",
+"storage": "Integer",
+"spec": ""
+},
+"-1001603": {
+"name": "Condición de borde curvado",
+"group": "Edición de forma de losa",
+"storage": "Integer",
+"spec": ""
+},
+"-1002300": {
+"name": "Desfase de altura desde nivel",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1140104": {
+"name": "Panel",
+"group": "Eléctrico - Cargas",
+"storage": "String",
+"spec": "autodesk.spec:spec.string-2.0.0"
+},
+"-1140103": {
+"name": "Número de circuito",
+"group": "Eléctrico - Cargas",
+"storage": "String",
+"spec": "autodesk.spec:spec.string-2.0.0"
+},
+"-1140040": {
+"name": "Calcular coeficiente de utilización",
+"group": "Eléctrico - Iluminación",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"-1114241": {
+"name": "Datos eléctricos",
+"group": "Eléctrico - Circuitos",
+"storage": "String",
+"spec": "autodesk.spec:spec.string-2.0.0"
+},
+"-1151154": {
+"name": "Número de inicio de huellas/contrahuellas",
+"group": "Cotas",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.int64-2.0.0"
+},
+"-1151110": {
+"name": "Número de contrahuellas que desea",
+"group": "Cotas",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.int64-2.0.0"
+},
+"-1151105": {
+"name": "Altura de escalera deseada",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1007250": {
+"name": "Profundidad de huella real",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1007246": {
+"name": "Número de contrahuellas real",
+"group": "Cotas",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.int64-2.0.0"
+},
+"-1007219": {
+"name": "Desfase superior",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1007218": {
+"name": "Desfase de base",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1007206": {
+"name": "Altura de contrahuella real",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1007201": {
+"name": "Nivel superior",
+"group": "Restricciones",
+"storage": "ElementId",
+"spec": ""
+},
+"-1007200": {
+"name": "Nivel base",
+"group": "Restricciones",
+"storage": "ElementId",
+"spec": ""
+},
+"-1151318": {
+"name": "Línea de ubicación",
+"group": "Restricciones",
+"storage": "Integer",
+"spec": ""
+},
+"-1151317": {
+"name": "Terminar con contrahuella",
+"group": "Construcción",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"-1151316": {
+"name": "Empezar con contrahuella",
+"group": "Construcción",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"-1151309": {
+"name": "Anchura de tramo real",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1151308": {
+"name": "Profundidad de huella real",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1151307": {
+"name": "Altura de contrahuella real",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1151306": {
+"name": "Número de huellas real",
+"group": "Cotas",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.int64-2.0.0"
+},
+"-1151305": {
+"name": "Número de contrahuellas real",
+"group": "Cotas",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.int64-2.0.0"
+},
+"-1151304": {
+"name": "Extender por debajo de base de contrahuella",
+"group": "Construcción",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1151303": {
+"name": "Altura de tramo",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1151302": {
+"name": "Altura superior relativa",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1151301": {
+"name": "Altura de base relativa",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1151708": {
+"name": "Recortar soporte en extremo superior",
+"group": "Restricciones",
+"storage": "Integer",
+"spec": ""
+},
+"-1151706": {
+"name": "Corte de extremo superior",
+"group": "Restricciones",
+"storage": "Integer",
+"spec": ""
+},
+"-1151705": {
+"name": "Corte de extremo inferior",
+"group": "Restricciones",
+"storage": "Integer",
+"spec": ""
+},
+"-1151507": {
+"name": "Grosor total",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1151501": {
+"name": "Altura relativa",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"237302": {
+"name": "Pot Material",
+"group": "Materiales y acabados",
+"storage": "ElementId",
+"spec": "autodesk.spec.aec:material-1.0.0"
+},
+"-1012610": {
+"name": "Área proyectada",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:area-2.0.0"
+},
+"-1012601": {
+"name": "Área de superficie",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:area-2.0.0"
+},
+"-1002107": {
+"name": "Material",
+"group": "Materiales y acabados",
+"storage": "ElementId",
+"spec": "autodesk.spec.aec:material-1.0.0"
+},
+"-1013343": {
+"name": "Desfase",
+"group": "Rejilla 2",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1013342": {
+"name": "Desfase",
+"group": "Rejilla 1",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1013340": {
+"name": "Ángulo",
+"group": "Rejilla 2",
+"storage": "Double",
+"spec": "autodesk.spec.aec:angle-2.0.0"
+},
+"-1013339": {
+"name": "Ángulo",
+"group": "Rejilla 1",
+"storage": "Double",
+"spec": "autodesk.spec.aec:angle-2.0.0"
+},
+"-1013337": {
+"name": "Número",
+"group": "Rejilla 2",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.int64-2.0.0"
+},
+"-1013336": {
+"name": "Número",
+"group": "Rejilla 1",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.int64-2.0.0"
+},
+"-1013335": {
+"name": "Justificación",
+"group": "Rejilla 2",
+"storage": "Integer",
+"spec": ""
+},
+"-1013334": {
+"name": "Justificación",
+"group": "Rejilla 1",
+"storage": "Integer",
+"spec": ""
+},
+"246169": {
+"name": "Mounting Height",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"246170": {
+"name": "Distance From Floor",
+"group": "Otros",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"246171": {
+"name": "Width",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"-1012502": {
+"name": "Desfase de altura desde nivel",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1012804": {
+"name": "Desfase desde muro",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1012802": {
+"name": "Desfase desde nivel",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1012801": {
+"name": "Nivel",
+"group": "Restricciones",
+"storage": "ElementId",
+"spec": ""
+},
+"-1150360": {
+"name": "Longitud",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1155110": {
+"name": "Fase C de potencia aparente de terminales de alimentación",
+"group": "Eléctrico - Cargas",
+"storage": "Double",
+"spec": "autodesk.spec.aec.electrical:apparentPower-2.0.0"
+},
+"-1155109": {
+"name": "Fase B de potencia aparente de terminales de alimentación",
+"group": "Eléctrico - Cargas",
+"storage": "Double",
+"spec": "autodesk.spec.aec.electrical:apparentPower-2.0.0"
+},
+"-1155108": {
+"name": "Fase A de potencia aparente de terminales de alimentación",
+"group": "Eléctrico - Cargas",
+"storage": "Double",
+"spec": "autodesk.spec.aec.electrical:apparentPower-2.0.0"
+},
+"-1155104": {
+"name": "Fase C de potencia aparente de circuito de ramificación",
+"group": "Eléctrico - Cargas",
+"storage": "Double",
+"spec": "autodesk.spec.aec.electrical:apparentPower-2.0.0"
+},
+"-1155103": {
+"name": "Fase B de potencia aparente de circuito de ramificación",
+"group": "Eléctrico - Cargas",
+"storage": "Double",
+"spec": "autodesk.spec.aec.electrical:apparentPower-2.0.0"
+},
+"-1155102": {
+"name": "Fase A de potencia aparente de circuito de ramificación",
+"group": "Eléctrico - Cargas",
+"storage": "Double",
+"spec": "autodesk.spec.aec.electrical:apparentPower-2.0.0"
+},
+"-1155100": {
+"name": "Terminales de alimentación",
+"group": "Eléctrico - Circuitos",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"-1155099": {
+"name": "Opción de numeración de circuitos",
+"group": "Eléctrico - Circuitos",
+"storage": "Integer",
+"spec": ""
+},
+"-1140169": {
+"name": "Ubicación",
+"group": "General",
+"storage": "String",
+"spec": "autodesk.spec:spec.string-2.0.0"
+},
+"-1140151": {
+"name": "Factor de demanda total",
+"group": "Eléctrico - Cargas",
+"storage": "Double",
+"spec": "autodesk.spec.aec.electrical:demandFactor-2.0.0"
+},
+"-1140142": {
+"name": "Terminales de subalimentación",
+"group": "Eléctrico - Circuitos",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"-1140141": {
+"name": "Origen de suministro",
+"group": "Eléctrico - Circuitos",
+"storage": "String",
+"spec": "autodesk.spec:spec.string-2.0.0"
+},
+"-1140140": {
+"name": "Potencia de disyuntor principal",
+"group": "Eléctrico - Circuitos",
+"storage": "Double",
+"spec": "autodesk.spec.aec.electrical:current-2.0.0"
+},
+"-1140083": {
+"name": "Recinto",
+"group": "General",
+"storage": "String",
+"spec": "autodesk.spec:spec.string-2.0.0"
+},
+"-1140081": {
+"name": "Instalación",
+"group": "General",
+"storage": "String",
+"spec": "autodesk.spec:spec.string-2.0.0"
+},
+"-1140078": {
+"name": "Nombre de panel",
+"group": "General",
+"storage": "String",
+"spec": "autodesk.spec:spec.string-2.0.0"
+},
+"-1140069": {
+"name": "Demanda de potencia aparente total",
+"group": "Eléctrico - Cargas",
+"storage": "Double",
+"spec": "autodesk.spec.aec.electrical:apparentPower-2.0.0"
+},
+"-1140068": {
+"name": "Potencia aparente conectada total",
+"group": "Eléctrico - Cargas",
+"storage": "Double",
+"spec": "autodesk.spec.aec.electrical:apparentPower-2.0.0"
+},
+"-1140055": {
+"name": "Fase C de potencia aparente",
+"group": "Eléctrico - Cargas",
+"storage": "Double",
+"spec": "autodesk.spec.aec.electrical:apparentPower-2.0.0"
+},
+"-1140054": {
+"name": "Fase B de potencia aparente",
+"group": "Eléctrico - Cargas",
+"storage": "Double",
+"spec": "autodesk.spec.aec.electrical:apparentPower-2.0.0"
+},
+"-1140053": {
+"name": "Fase A de potencia aparente",
+"group": "Eléctrico - Cargas",
+"storage": "Double",
+"spec": "autodesk.spec.aec.electrical:apparentPower-2.0.0"
+},
+"-1150468": {
+"name": "Abreviatura de sistema",
+"group": "Mecánica",
+"storage": "String",
+"spec": "autodesk.spec:spec.string-2.0.0"
+},
+"-1140334": {
+"name": "Tipo de sistema",
+"group": "Mecánica",
+"storage": "ElementId",
+"spec": ""
+},
+"-1140325": {
+"name": "Clasificación de sistema",
+"group": "Mecánica",
+"storage": "String",
+"spec": "autodesk.spec:spec.string-2.0.0"
+},
+"-1140324": {
+"name": "Nombre de sistema",
+"group": "Mecánica",
+"storage": "String",
+"spec": "autodesk.spec:spec.string-2.0.0"
+},
+"777973": {
+"name": "Tank",
+"group": "Materiales y acabados",
+"storage": "ElementId",
+"spec": "autodesk.spec.aec:material-1.0.0"
+},
+"-1001305": {
+"name": "Anchura bruta",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001304": {
+"name": "Altura bruta",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"197324": {
+"name": "Install Depth (from outside)",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"197326": {
+"name": "Frame",
+"group": "Materiales y acabados",
+"storage": "ElementId",
+"spec": "autodesk.spec.aec:material-1.0.0"
+},
+"197327": {
+"name": "Casement",
+"group": "Materiales y acabados",
+"storage": "ElementId",
+"spec": "autodesk.spec.aec:material-1.0.0"
+},
+"197328": {
+"name": "Glass",
+"group": "Materiales y acabados",
+"storage": "ElementId",
+"spec": "autodesk.spec.aec:material-1.0.0"
+},
+"197329": {
+"name": "Casement Pivot",
+"group": "Gráficos",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"197330": {
+"name": "Top Hung Casement",
+"group": "Gráficos",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"197331": {
+"name": "Casement Swing in Plan",
+"group": "Gráficos",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"197332": {
+"name": "Window Cill Exterior",
+"group": "Materiales y acabados",
+"storage": "ElementId",
+"spec": "autodesk.spec.aec:material-1.0.0"
+},
+"197333": {
+"name": "Window Cill Interior",
+"group": "Materiales y acabados",
+"storage": "ElementId",
+"spec": "autodesk.spec.aec:material-1.0.0"
+},
+"197334": {
+"name": "Bottom Hung Casement",
+"group": "Gráficos",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"-1013436": {
+"name": "Recubrimiento de armadura - Cara interior",
+"group": "Estructura",
+"storage": "ElementId",
+"spec": ""
+},
+"-1013435": {
+"name": "Recubrimiento de armadura - Cara exterior",
+"group": "Estructura",
+"storage": "ElementId",
+"spec": ""
+},
+"-1010106": {
+"name": "Comentarios",
+"group": "Datos de identidad",
+"storage": "String",
+"spec": "autodesk.spec:spec.string-2.0.0"
+},
+"-1001658": {
+"name": "Elevación en parte inferior de punto de reconocimiento",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001657": {
+"name": "Elevación en parte superior de punto de reconocimiento",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001656": {
+"name": "Grosor de núcleo",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001567": {
+"name": "Longitud",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001558": {
+"name": "Anchura",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"981448": {
+"name": "Sofa Material",
+"group": "Materiales y acabados",
+"storage": "ElementId",
+"spec": "autodesk.spec.aec:material-1.0.0"
+},
+"985649": {
+"name": "Stand",
+"group": "Gráficos",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"211179": {
+"name": "Height",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"802337": {
+"name": "Material",
+"group": "Materiales y acabados",
+"storage": "ElementId",
+"spec": "autodesk.spec.aec:material-1.0.0"
+},
+"-1001801": {
+"name": "Final de extrusión",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001800": {
+"name": "Inicio de extrusión",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001652": {
+"name": "Desfase de nivel",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"-1001651": {
+"name": "Nivel de referencia",
+"group": "Restricciones",
+"storage": "ElementId",
+"spec": ""
+},
+"698508": {
+"name": "Flow Pressure",
+"group": "Mecánica",
+"storage": "Double",
+"spec": "autodesk.spec.aec.piping:pressure-2.0.0"
+},
+"698509": {
+"name": "Chrome Drain Fitting Visibility",
+"group": "Gráficos",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"698609": {
+"name": "Distance from Wall",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"753908": {
+"name": "Lamp Quantity",
+"group": "Cotas",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.int64-2.0.0"
+},
+"753910": {
+"name": "Track/Bswy Length",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"753917": {
+"name": "Spacing Left",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"753918": {
+"name": "Spacing",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"753920": {
+"name": "Lamp 2",
+"group": "Otros",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"753921": {
+"name": "Lamp 3",
+"group": "Otros",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"753922": {
+"name": "Lamp 4",
+"group": "Otros",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"753923": {
+"name": "Lamp 5",
+"group": "Otros",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"753924": {
+"name": "Lamp 6",
+"group": "Otros",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"753925": {
+"name": "Lamp 7",
+"group": "Otros",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"753926": {
+"name": "Lamp 8",
+"group": "Otros",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"753927": {
+"name": "Lamp 9",
+"group": "Otros",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"753928": {
+"name": "Lamp 10",
+"group": "Otros",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"753929": {
+"name": "Lamp 11",
+"group": "Otros",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"753930": {
+"name": "Lamp 12",
+"group": "Otros",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"753934": {
+"name": "Rotation",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:angle-2.0.0"
+},
+"412506": {
+"name": "Capital Top Offset",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"412508": {
+"name": "Height 1",
+"group": "Otros",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"412509": {
+"name": "Show Drop Panel",
+"group": "Construcción",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"412510": {
+"name": "Show Capital",
+"group": "Construcción",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"-1018502": {
+"name": "Volumen reforzado estimado",
+"group": "Estructura",
+"storage": "Double",
+"spec": "autodesk.spec.aec.structural:reinforcementVolume-2.0.0"
+},
+"-1123512": {
+"name": "Mantener concéntrico",
+"group": "Cotas",
+"storage": "Integer",
+"spec": "autodesk.spec:spec.bool-1.0.0"
+},
+"-1013430": {
+"name": "Espaciado máximo",
+"group": "Patrón",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"161971": {
+"name": "REBAR",
+"group": "Otros",
+"storage": "String",
+"spec": "autodesk.spec:spec.string-2.0.0"
+},
+"162865": {
+"name": "Top Bars",
+"group": "Otros",
+"storage": "String",
+"spec": "autodesk.spec:spec.string-2.0.0"
+},
+"100549": {
+"name": "End Reaction - Live",
+"group": "Resultados de análisis",
+"storage": "Double",
+"spec": "autodesk.spec.aec.structural:force-2.0.0"
+},
+"-1001530": {
+"name": "Tamaño de contraflecha",
+"group": "Estructura",
+"storage": "String",
+"spec": "autodesk.spec:spec.string-2.0.0"
+},
+"-1001529": {
+"name": "Número de entramados",
+"group": "Estructura",
+"storage": "String",
+"spec": "autodesk.spec:spec.string-2.0.0"
+},
+"-1001306": {
+"name": "Longitud",
+"group": "Restricciones",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.1"
+},
+"97908": {
+"name": "b",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"97910": {
+"name": "d",
+"group": "Cotas",
+"storage": "Double",
+"spec": "autodesk.spec.aec:length-2.0.0"
+},
+"97914": {
+"name": "Stiffener Material",
+"group": "Materiales y acabados",
+"storage": "ElementId",
+"spec": "autodesk.spec.aec:material-1.0.0"
+}
+}

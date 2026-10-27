@@ -12,17 +12,24 @@ namespace OpenProject.Revit.LiveSync.Queue
 {
   public sealed class SyncWorker : IDisposable
   {
+    // Capability the CDE announces when it can store and show 2D drawings.
+    public const string DrawingsFeature = "drawings2d";
     private readonly object _gate = new();
     private readonly CancellationTokenSource _cancel = new();
     private readonly ISyncReceiver _receiver;
     private readonly ISyncTelemetrySink _log;
     private readonly Task _worker;
     private readonly string _directory;
+    public string DirectoryPath => _directory;
     private readonly Task _predecessor;
     private LiveSnapshot _latest;
     private long _generation, _persisted;
     private bool _reconcile;
     private volatile bool _captureHold, _inFlight;
+    private volatile bool _preparing;
+    private volatile bool _publishRequested;
+    private volatile bool _awaitSnapshot;
+    private long _awaitGeneration;
     private volatile bool _paused, _validated, _attention, _waiting;
     private volatile SyncProgress _progress = new();
     private int _retry;
@@ -33,6 +40,13 @@ namespace OpenProject.Revit.LiveSync.Queue
     public SyncProgress Progress => _progress;
     public Task Completion => _worker;
     public bool IsPaused => _paused;
+    public bool IsPreparing => _preparing;
+    public bool IsPublishRequested => _publishRequested;
+    public bool IsAwaitingSnapshot => _awaitSnapshot;
+    // Live mode: any change persisted in the queue is published without a new request, including
+    // edits captured while the previous revision was still being sent.
+    public bool Live { get => _live; set => _live = value; }
+    private volatile bool _live;
 
     public SyncWorker(string directory, ISyncReceiver receiver, ISyncTelemetrySink log, Task predecessor = null)
     { _directory = directory; _receiver = receiver; _log = log; _predecessor = predecessor; _worker = Task.Run(RunAsync); }
@@ -43,17 +57,39 @@ namespace OpenProject.Revit.LiveSync.Queue
     }
     public void Pause(bool value)
     {
+      if (value) { _publishRequested = false; _awaitSnapshot = false; }
       _paused = value;
       var previous = _progress;
       _progress = new SyncProgress { Stage = value ? _inFlight ? "Pausando" : "En pausa" : "Continuando",
         Detail = value ? _inFlight ? "Esperando confirmación del lote en vuelo" : "La captura continúa; no salen nuevos lotes" : "Retomando desde el último bloque confirmado",
         Done = previous.Done, Total = previous.Total, JobId = previous.JobId, Paused = value, Attention = _attention,
         ReceiverRevision = previous.ReceiverRevision, ViewerRevision = previous.ViewerRevision, Jobs = previous.Jobs,
-        HasPendingChanges = previous.HasPendingChanges, PendingElements = previous.PendingElements };
+        HasPendingChanges = previous.HasPendingChanges, Drawings = previous.Drawings, DrawingsPending = previous.DrawingsPending, DrawingsSupported = previous.DrawingsSupported, PendingElements = previous.PendingElements,
+        BytesDone = previous.BytesDone, BytesTotal = previous.BytesTotal };
       _log.Emit("queue", value ? "PAUSE" : "RESUME", value ? "Pausa solicitada" : "Continuación solicitada");
     }
-    public void HoldForReconciliation() { _captureHold = true; _validated = false; Pause(true); }
-    public void Retry() { _attention = false; Interlocked.Increment(ref _retry); }
+    public void HoldForReconciliation()
+    {
+      _captureHold = true; _validated = false; _paused = true;
+      _log.Emit("queue", "RECONCILE_HOLD", "Publicación en espera de una captura completa");
+    }
+    public void RequestPublish()
+    {
+      _attention = false; _paused = false; _publishRequested = true;
+      Interlocked.Increment(ref _retry);
+      var previous = _progress;
+      _progress = new SyncProgress { Stage = "Solicitud de sincronización", Detail = "Esperando la captura local más reciente",
+        Done = 0, Total = 0, Paused = false, Attention = false,
+        ReceiverRevision = previous.ReceiverRevision, ViewerRevision = previous.ViewerRevision, Jobs = previous.Jobs,
+        HasPendingChanges = previous.HasPendingChanges, Drawings = previous.Drawings, DrawingsPending = previous.DrawingsPending, DrawingsSupported = previous.DrawingsSupported, PendingElements = previous.PendingElements };
+      _log.Emit("queue", "PUBLISH_REQUESTED", "Sincronización solicitada por el usuario");
+    }
+    public void Retry() => RequestPublish();
+    // Publication waits for the capture that the same click started; nothing older is sent first.
+    public void AwaitSnapshot()
+    { lock (_gate) { _awaitGeneration = _generation; _awaitSnapshot = true; } }
+    public void CancelPublish()
+    { _publishRequested = false; _awaitSnapshot = false; }
 
     private async Task RunAsync()
     {
@@ -93,14 +129,16 @@ namespace OpenProject.Revit.LiveSync.Queue
       var retrySeen = _retry;
       string viewerSeen = null;
       DateTime nextProbe = DateTime.MinValue, nextAttempt = DateTime.MinValue;
+      if (_receiver is ISyncPresence announcer) announcer.Announce(_session);
       while (!_cancel.IsCancellationRequested)
       {
         SaveLatest(outbox);
+        if (_live && !_publishRequested && !_paused && !_attention && !_captureHold && outbox.HasPending) _publishRequested = true;
         if (_receiver is ISyncPresence presence) presence.SetPaused(_paused || _captureHold);
         if (retrySeen != _retry) {
           if (_waiting) { outbox.Abandon("Publicación solicitada por el usuario; se conserva la captura más reciente"); _waiting = false; }
           retrySeen = _retry; nextAttempt = nextProbe = DateTime.MinValue; remote = null; }
-        if (_attention || !_validated || _paused || _captureHold)
+        if (_attention || !_validated || _paused || _captureHold || _awaitSnapshot)
         {
           Report(outbox, _attention ? (_waiting ? "En espera de publicación" : "Requiere atención") : _paused ? "En pausa" : "Esperando captura",
             _attention ? _progress.Detail : "La cola local se conserva; no salen nuevos lotes", remote, outbox.Active, _progress.Done);
@@ -113,26 +151,37 @@ namespace OpenProject.Revit.LiveSync.Queue
           {
             remote = await _receiver.StatusAsync(_cancel.Token).ConfigureAwait(false);
             nextProbe = DateTime.UtcNow.AddSeconds(2);
+            outbox.SetDrawingsSupported(remote.Supports(DrawingsFeature));
             if (remote.SourceId == outbox.Get("source") && remote.ViewerRevision == outbox.Get("revision") && remote.ViewerRevision != null && viewerSeen != remote.ViewerRevision)
             {
-              outbox.History(remote.ViewerRevision, "Confirmado en visor", "El visor aplicó esta revisión");
+              outbox.History(remote.ViewerRevision, "Revisión aplicada", "El destino aplicó esta revisión");
               viewerSeen = remote.ViewerRevision;
             }
           }
           var job = outbox.Active;
           if (job != null && remote.RevisionId == job.JobId)
           { outbox.Complete(job); job = null; }
+          if (!_publishRequested)
+          {
+            Report(outbox, outbox.HasPending ? "Listo para sincronizar" : "Al día",
+              outbox.HasPending ? "Captura guardada localmente · pulsa Sincronizar para publicarla" : "Sin cambios pendientes de publicación",
+              remote);
+            await Delay(250).ConfigureAwait(false); continue;
+          }
           if (job == null && (outbox.HasPending || remote.RevisionId != outbox.Get("revision") || remote.SessionId != _session))
           {
             if (remote.SessionStartedAt > _started) throw new ReceiverException(403);
             var reset = remote.RevisionId != outbox.Get("revision") || remote.SourceId != outbox.Get("source") || remote.SessionId != _session;
-            job = outbox.Prepare(_session, _started, remote.RevisionId, reset);
+            Report(outbox, "Preparando paquetes", "Agrupando elementos en paquetes reanudables", remote);
+            _preparing = true;
+            try { job = outbox.Prepare(_session, _started, remote.RevisionId, reset, ReportPreparation, compact: remote.Supports("sharedGeometry"), drawings: remote.Supports(DrawingsFeature)); }
+            finally { _preparing = false; }
             _log.Emit("queue", "JOB_PREPARED", "Trabajo preparado", job.JobId, bytes: job.ByteLength);
           }
           if (job == null)
           {
-            Report(outbox, remote.ViewerRevision == remote.RevisionId ? "Al día" : "Guardado · visor pendiente",
-              "Todos los cambios preparados están guardados en el destino seleccionado", remote);
+            _publishRequested = false;
+            Report(outbox, "Al día", "La revisión vigente está guardada en el CDE", remote);
             await Delay(250).ConfigureAwait(false); continue;
           }
           Report(outbox, "Sincronizando", "Consultando bloques confirmados", remote, job);
@@ -155,7 +204,7 @@ namespace OpenProject.Revit.LiveSync.Queue
               if (received.Contains(index)) continue;
               var bytes = outbox.Chunk(index);
               var watch = Stopwatch.StartNew();
-              Report(outbox, "Enviando", $"Lote {index + 1} de {job.ChunkCount}", remote, job, received.Count);
+              Report(outbox, "Enviando", $"Paquete {index + 1} de {job.ChunkCount} · {FormatBytes(outbox.AcknowledgedBytes)} de {FormatBytes(job.ByteLength)}", remote, job, received.Count);
               _inFlight = true;
               try { await _receiver.ChunkAsync(job.JobId, index, bytes, _cancel.Token).ConfigureAwait(false); }
               finally { _inFlight = false; }
@@ -170,6 +219,7 @@ namespace OpenProject.Revit.LiveSync.Queue
             finally { _inFlight = false; }
           }
           outbox.Complete(job);
+          _publishRequested = outbox.HasPending;
           _log.Emit("transport", "REVISION_STORED", "Revisión guardada en destino; presentación independiente", job.JobId);
           remote = null; failures = 0; nextAttempt = DateTime.MinValue;
         }
@@ -189,7 +239,11 @@ namespace OpenProject.Revit.LiveSync.Queue
           var permanent = error is ReceiverException receiver && receiver.Permanent;
           var localDataError = error is InvalidOperationException;
           _attention = permanent || localDataError;
-          var delay = Math.Min(30, Math.Pow(2, Math.Min(failures++, 5))) + Random.Shared.NextDouble();
+          if (_attention) _publishRequested = false;
+          // Resending a job whose content the CDE rejected fails the same way; the next Synchronize prepares it again.
+          if (error is ReceiverException { StatusCode: 422 } && outbox.Active != null)
+            outbox.Abandon("El CDE rechazó el contenido de los paquetes; se volverán a preparar al sincronizar");
+          var delay = Math.Min(30, Math.Pow(2, Math.Min(failures++, 5))) + NetCompat.NextJitter();
           if (error is ReceiverException limited) delay = Math.Max(delay, limited.RetryAfterSeconds);
           nextAttempt = DateTime.UtcNow.AddSeconds(delay); remote = null;
           var detail = _attention ? "Revisa alcance, permisos o versión del receptor antes de reintentar. " + error.Message
@@ -203,7 +257,7 @@ namespace OpenProject.Revit.LiveSync.Queue
 
     private void WaitForPublication(SqliteOutbox box, string detail, ReceiverStatus remote, SyncJob job)
     {
-      _attention = _waiting = true;
+      _attention = _waiting = true; _publishRequested = false;
       Report(box, "En espera de publicación", detail, remote, job);
       _log.Emit("transport", "PUBLISHER_WAITING", "Cola conservada; se necesita solicitud manual de publicación");
     }
@@ -214,7 +268,12 @@ namespace OpenProject.Revit.LiveSync.Queue
       lock (_gate) { latest = _latest; generation = _generation; reconcile = _reconcile; }
       if (latest == null || generation == _persisted) return;
       var watch = Stopwatch.StartNew();
-      var changed = outbox.Save(latest);
+      var saving = _publishRequested && !duringJob;
+      if (saving) _preparing = true;
+      bool changed;
+      try { changed = outbox.Save(latest); }
+      finally { if (saving) _preparing = false; }
+      lock (_gate) { if (_awaitSnapshot && generation > _awaitGeneration) _awaitSnapshot = false; }
       // A reconciled snapshot must not remove the chunks that the current loop still references.
       if (reconcile && duringJob) return;
       if (reconcile) { _session = Guid.NewGuid().ToString("N"); _started = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); }
@@ -233,11 +292,30 @@ namespace OpenProject.Revit.LiveSync.Queue
       { box.History(job.JobId, stage, detail); _historyStage = job.JobId + stage; }
       if (box != null && remote?.SourceId != box.Get("source")) remote = null;
       _progress = new SyncProgress { Stage = stage, Detail = detail, JobId = job?.JobId, Done = done, Total = job?.ChunkCount ?? 0,
+        BytesDone = box?.AcknowledgedBytes ?? _progress.BytesDone, BytesTotal = job?.ByteLength ?? _progress.BytesTotal,
         Paused = _paused, Attention = _attention, ReceiverRevision = remote?.RevisionId ?? _progress.ReceiverRevision,
         ViewerRevision = remote?.ViewerRevision ?? _progress.ViewerRevision, Jobs = box?.History() ?? _progress.Jobs,
-        PendingElements = box?.PendingElements ?? _progress.PendingElements, HasPendingChanges = box?.HasPending ?? _progress.HasPendingChanges };
+        PendingElements = box?.PendingElements ?? _progress.PendingElements, HasPendingChanges = box?.HasPending ?? _progress.HasPendingChanges,
+        Drawings = box?.DrawingCount ?? _progress.Drawings, DrawingsPending = box?.HasPendingDrawings ?? _progress.DrawingsPending,
+        DrawingsSupported = box == null ? _progress.DrawingsSupported : box.Get("drawingsSupported") == "1" };
+    }
+    private void ReportPreparation(int done, int total, long bytes)
+    {
+      var previous = _progress;
+      var percent = total == 0 ? 100 : (int)(100L * done / total);
+      _progress = new SyncProgress
+      {
+        Stage = "Preparando paquetes",
+        Detail = $"Procesando elementos para los paquetes · {done:N0} de {total:N0} · {percent} %",
+        Done = done, Total = total, BytesDone = bytes, BytesTotal = 0,
+        Paused = _paused, Attention = _attention,
+        ReceiverRevision = previous.ReceiverRevision, ViewerRevision = previous.ViewerRevision,
+        Jobs = previous.Jobs, PendingElements = previous.PendingElements, HasPendingChanges = previous.HasPendingChanges, Drawings = previous.Drawings, DrawingsPending = previous.DrawingsPending, DrawingsSupported = previous.DrawingsSupported
+      };
     }
     private Task Delay(int milliseconds) => Task.Delay(milliseconds, _cancel.Token);
+    private static string FormatBytes(long bytes) => bytes >= 1024L * 1024 * 1024
+      ? $"{bytes / (1024d * 1024 * 1024):0.00} GiB" : $"{bytes / (1024d * 1024):0.00} MiB";
     public void Dispose()
     { if (Interlocked.Exchange(ref _disposed, 1) != 0) return; _cancel.Cancel(); _ = _worker.ContinueWith(_ => _cancel.Dispose(), TaskScheduler.Default); }
   }

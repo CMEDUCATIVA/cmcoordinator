@@ -96,16 +96,18 @@ namespace OpenProject.Revit.LiveSync
       var facets = node.GetFacets();
       if (points.Count == 0 || facets.Count == 0) return;
       _vertices += points.Count;
-      if (_vertices > 750000)
-        throw new InvalidOperationException("La vista supera 750.000 vértices por extracción; reduce su alcance.");
+      // A linked model is extracted as a whole, so it shares the view limit rather than the per-element one.
+      if (_vertices > OpenProject.Revit.LiveSync.Capture.CaptureLimits.ViewVertices)
+        throw new InvalidOperationException($"La vista supera {OpenProject.Revit.LiveSync.Capture.CaptureLimits.ViewVertices:N0} vértices por extracción; reduce su alcance.");
       var positions = new double[points.Count * 3];
       var transform = _transforms.Peek();
       for (var i = 0; i < points.Count; i++)
       {
         var point = transform.OfPoint(points[i]);
-        positions[i * 3] = Finite(point.X * 0.3048);
-        positions[i * 3 + 1] = Finite(point.Y * 0.3048);
-        positions[i * 3 + 2] = Finite(point.Z * 0.3048);
+        // Same 0.1 mm precision as directly captured elements.
+        positions[i * 3] = Finite(Math.Round(point.X * 0.3048, 4));
+        positions[i * 3 + 1] = Finite(Math.Round(point.Y * 0.3048, 4));
+        positions[i * 3 + 2] = Finite(Math.Round(point.Z * 0.3048, 4));
       }
       var indices = new int[facets.Count * 3];
       var mirror = transform.Determinant < 0;

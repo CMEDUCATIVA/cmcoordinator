@@ -43,6 +43,13 @@ namespace OpenProject.Revit.LiveSync
     public string View { get; }
     public IReadOnlyDictionary<string, LiveElement> Elements { get; }
     public Bim.BimContext Bim { get; }
+    // 2D views chosen by the user, by drawing id; null when the snapshot carries no drawings.
+    public IReadOnlyDictionary<string, Drawings.LiveDrawing> Drawings { get; private set; }
+
+    // Same capture with another set of drawings: a redrawn view does not recapture the 3D model.
+    public LiveSnapshot WithDrawings(IReadOnlyDictionary<string, Drawings.LiveDrawing> drawings) =>
+      new(SourceId, Title, View, Elements.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal), Bim, DocumentId, LegacySourceId)
+      { Drawings = drawings?.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal) };
   }
 
   public sealed class LivePacket

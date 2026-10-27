@@ -8,11 +8,14 @@ namespace OpenProject.Shared.Authentication
   {
     public CdeSessionStatus Status { get; }
     public long UserId { get; }
-    public CdeSessionObservation(CdeSessionStatus status, long userId = 0)
+    public string Origin { get; }
+    public CdeSessionObservation(CdeSessionStatus status, long userId = 0, string origin = null)
     {
       if (!Enum.IsDefined(typeof(CdeSessionStatus), status) || (status == CdeSessionStatus.Authenticated && userId <= 0))
         throw new ArgumentException("Estado de sesión inválido");
-      Status = status; UserId = status == CdeSessionStatus.Authenticated ? userId : 0;
+      if (!string.IsNullOrEmpty(origin) && !CdeSessionPolicy.TryGetOrigin(origin, out _))
+        throw new ArgumentException("Origen de sesión inválido", nameof(origin));
+      Status = status; UserId = status == CdeSessionStatus.Authenticated ? userId : 0; Origin = origin;
     }
   }
 
@@ -21,6 +24,7 @@ namespace OpenProject.Shared.Authentication
   {
     private readonly CdeSessionLease _remote = new CdeSessionLease();
     public long LastSignedInUserId { get; private set; }
+    public string LastSignedInOrigin { get; private set; }
     public bool HasLocalAccess { get; private set; }
     public bool PanelRequested { get; private set; }
     public CdeSessionStatus Status { get; private set; } = CdeSessionStatus.Unavailable;
@@ -38,6 +42,7 @@ namespace OpenProject.Shared.Authentication
         if (!HasLocalAccess) PanelRequested = true;
         HasLocalAccess = true;
         LastSignedInUserId = observation.UserId;
+        LastSignedInOrigin = observation.Origin;
       }
       else if (Status == CdeSessionStatus.SignedOut)
       { HasLocalAccess = false; PanelRequested = false; }

@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="en-US" dir="ltr" class="wf-lato-n3-active wf-lato-n4-active wf-active">
+<html lang="es" dir="ltr" class="wf-lato-n3-active wf-lato-n4-active wf-active">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
     <meta http-equiv="x-ua-compatible" content="ie=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>OpenProject Revit Integration</title>
-    <meta name="description" content="Revit pluging of OpenProject, Web-based open source project management software to support teams along the entire project management life-cycle: task management✓ Gantt charts✓ agile boards✓ team collaboration✓ bug tracking✓ roadmap✓ time and cost reporting✓ FREE trial!">
+    <title>Cmcoordinator ? CMPROYECTOS BIM</title>
+    <meta name="description" content="Conecta Revit con CMPROYECTOS BIM.">
     <link rel="stylesheet" href="./assets/main.css">
     <link href="./assets/font-awesome-css/all.css" rel="stylesheet">
     <style>
@@ -75,7 +75,7 @@
         place-content: center center;
         width: 100%;
       }
-      
+
       .landing_page_container, .settings_container {
         margin: 125px auto 0 auto;
         max-width: 800px;
@@ -256,7 +256,7 @@
 
       .add_instance__open {
         width: 120px;
-        overflow: hidden;        
+        overflow: hidden;
       }
 
       .add_instance__open i {
@@ -299,10 +299,13 @@
       }
 
       .brand img {
-        width: 210px;
+        max-width: min(85vw, 420px);
+        max-height: 40px;
+        width: auto;
+        object-fit: contain;
       }
     </style>
-    
+
     <script type="text/javascript">
         let instanceInput;
         let errorContainer;
@@ -348,7 +351,7 @@
             }
 
             if (!validationResult.isValid) {
-                showErrorMessage("<span>The URL is not valid</span>");
+                showErrorMessage("<span>La URL no es v&aacute;lida</span>");
                 addInstanceButton.disabled = true;
             } else {
 
@@ -356,7 +359,7 @@
 
                 const isAlreadyOnTheList = allInstances && allInstances.includes(instanceUrl);
                 if (isAlreadyOnTheList) {
-                    showErrorMessage("<span>The URL is already included on this list</span>");
+                    showErrorMessage("<span>La URL ya est&aacute; en la lista</span>");
                     addInstanceButton.disabled = true;
                     return;
                 }
@@ -390,7 +393,7 @@
             if (selectedInstance) {
                 window.RevitBridge.sendMessageToRevit('InstanceSelected', '0', selectedInstance);
             } else {
-                showErrorMessage('<span>Please provide a valid OpenProject instance url</span>');
+                showErrorMessage('<span>Introduce una URL v&aacute;lida del CDE</span>');
             }
         }
 
@@ -596,15 +599,15 @@
   <body>
     <header class="header">
       <div class="logo__container">
-        <a class="brand" href="https://www.openproject.org/">
-          <img src="./assets/logo_openproject_bim_big.png" title="OpenProject.org">
-        </a>
+        <span class="brand">
+          <img src="./assets/cmp_logo.png" alt="CMPROYECTOS BIM">
+        </span>
       </div>
     </header>
 
     <div class="landing_page_container" role="document">
       <div class="claim__container">
-        <h1>Enter the web address of your OpenProject</h1>        
+        <h1>Introduce la direcci&oacute;n de tu CDE</h1>
       </div>
 
       <div class="form__container">
@@ -614,39 +617,24 @@
               <input type="text"
                      name="company"
                      id="instance_name_input"
-                     placeholder="https://example.openproject.com">
+                     placeholder="https://erp.cmeducativa.es">
             </div>
 
             <button id="submit-button" type="button" name="submit" disabled="true">
-              Go
+              Abrir
             </button>
           </div>
-          
+
           <div class="alert alert-danger validation-error landing-error" id="instance-error-message" style="display:none;" role="alert">
           </div>
 
-          <div class="signup">
-            <p>
-              You don't have an OpenProject instance yet? Get one in our Cloud
-              <a href="https://start.openproject.com/go/bim" target="_blank">
-                here.
-              </a>
-            </p>
-
-            <p>
-              You don't remember your organization's name in the OpenProject Cloud? Find it 
-              <a href="https://www.openproject.org/request-organization" target="_blank">
-                here.
-              </a>
-            </p>
-          </div>
         </form>
       </div>
     </div>
 
     <div class="settings_container">
       <div class="previous_instances_title">
-        <p><strong>Your OpenProject instances</strong></p>
+        <p><strong>Tus instancias del CDE</strong></p>
       </div>
 
       <div class="previous_instances__list_container">
@@ -657,7 +645,7 @@
             <p class="add_instance__open">
               <i class="fas fa-plus"></i>
 
-              Add URL
+              A&ntilde;adir URL
             </p>
           </div>
 
@@ -666,12 +654,12 @@
               <input type="text"
                     name="company"
                     class="add_instance__input"
-                    placeholder="https://example.openproject.com"
+                    placeholder="https://erp.cmeducativa.es"
                     autocomplete="off">
             </div>
 
             <button class="add_instance__add-button" type="button" name="submit" disabled="true">
-              Add
+              A&ntilde;adir
             </button>
 
             <div class="add_instance__close">
@@ -686,23 +674,23 @@
       </div>
         <div class="plugin_version">
             <p>
-                Plugin Version: @@PLUGIN_VERSION@@
+                Versi&oacute;n del complemento: @@PLUGIN_VERSION@@
             </p>
         </div>
     </div>
 
     <template id="listItemTemplate">
       <div class="list__block">
-        <div class="list_item__wrapper">        
+        <div class="list_item__wrapper">
           <button class="go-button" type="button" name="submit">
-            Go
+            Abrir
           </button>
-        
+
           <button class="delete-button" type="button" name="submit">
             <i class="far fa-trash-alt"></i>
           </button>
         </div>
-      </div>        
+      </div>
     </template>
   </body>
 </html>

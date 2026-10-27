@@ -45,7 +45,8 @@ namespace OpenProject.Browser.WebViewIntegration
     {
       if (_client == null) return;
       var message = new WebUiMessageEventArgs(MessageTypes.CDE_SESSION_STATUS, nonce,
-        JsonConvert.SerializeObject(new { sequence, userId = observation.UserId, sessionState = observation.Status.ToString(), observedUtc = System.DateTime.UtcNow }));
+        JsonConvert.SerializeObject(new { sequence, userId = observation.UserId, origin = observation.Origin,
+          sessionState = observation.Status.ToString(), observedUtc = System.DateTime.UtcNow }));
       System.Threading.Tasks.Task.Run(() =>
       {
         try { _client.Send(JsonConvert.SerializeObject(message)); }

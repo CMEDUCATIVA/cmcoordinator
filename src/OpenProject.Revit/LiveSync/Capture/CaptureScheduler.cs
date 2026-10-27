@@ -14,6 +14,8 @@ namespace OpenProject.Revit.LiveSync.Capture
     private readonly View3D _view;
     private readonly string _source;
     private readonly ISyncTelemetrySink _log;
+    private readonly string _diagnosticsDirectory;
+    private bool _ifcTemplateInspected;
     private readonly ElementGeometryReader _reader = new();
     private readonly Queue<ElementId> _queue = new();
     private readonly HashSet<ElementId> _queued = new();
@@ -28,13 +30,16 @@ namespace OpenProject.Revit.LiveSync.Capture
     private DateTime _firstChange = DateTime.MinValue;
     private Stopwatch _captureClock = Stopwatch.StartNew();
     public bool Stopped { get; private set; }
+    public int? CapturedElements { get; private set; }
+    public int ProgressDone => _processed;
+    public int ProgressTotal => Math.Max(_total, _processed + _queue.Count);
     public string Description { get; private set; } = "Preparando captura inicial";
     public bool Failed => _failed;
     public bool IsValid => _document.IsValidObject && _view.IsValidObject;
     public ElementId ViewId => _view.Id;
     public bool HasWork => !Stopped && !_failed && (_full || _queue.Count > 0 || _changed);
-    public CaptureScheduler(Document document, View3D view, string source, ISyncTelemetrySink log)
-    { _document = document; _view = view; _source = source; _log = log; }
+    public CaptureScheduler(Document document, View3D view, string source, ISyncTelemetrySink log, string diagnosticsDirectory = null)
+    { _document = document; _view = view; _source = source; _log = log; _diagnosticsDirectory = diagnosticsDirectory; }
 
     public void Changed(DocumentChangedEventArgs args)
     {
@@ -79,8 +84,8 @@ namespace OpenProject.Revit.LiveSync.Capture
               if (_elements.Remove(key, out var old)) _vertices -= Vertices(old);
           foreach (var pair in captured) { _elements[pair.Key] = pair.Value; _vertices += Vertices(pair.Value); }
           _rootKeys[id] = captured.Keys.ToList();
-          if (_elements.Count > 20000 || _vertices > 750000)
-            throw new InvalidOperationException("La vista excede 20.000 elementos o 750.000 vértices; reduce su alcance.");
+          if (_elements.Count > CaptureLimits.ViewElements || _vertices > CaptureLimits.ViewVertices)
+            throw new InvalidOperationException($"La vista excede {CaptureLimits.ViewElements:N0} elementos o {CaptureLimits.ViewVertices:N0} vértices; reduce su alcance.");
           if (one.ElapsedMilliseconds > 100)
             _log.Emit("capture", "SLOW_CAPTURE_UNIT", "Una unidad geométrica superó el presupuesto; considera reducir detalle o vínculos", durationMs: one.ElapsedMilliseconds);
           _processed++; count++;
@@ -110,11 +115,18 @@ namespace OpenProject.Revit.LiveSync.Capture
     private LiveSnapshot Finish()
     {
       if (!_changed) return null;
+      var snapshot = new LiveSnapshot(_source, _document.Title, _view.Name, _elements, Bim.BimCatalog.Read(_document, _view, _elements.Values),
+        _document.ProjectInformation.UniqueId, SourceIdentity.LegacyRead(_document));
+      if (!_ifcTemplateInspected && _diagnosticsDirectory != null)
+      {
+        _ifcTemplateInspected = true;
+        Bim.IfcTemplateDiagnostic.Inspect(_document, _elements.Values, _diagnosticsDirectory, _log);
+      }
       _changed = false; Description = $"Captura al día · {_elements.Count} elementos";
+      CapturedElements = snapshot.Elements.Count;
       _captureClock.Stop();
       _log.Emit("capture", "CAPTURE_READY", "Captura completada y entregada al almacenamiento local", durationMs: _captureClock.ElapsedMilliseconds, elements: _elements.Count);
-      return new LiveSnapshot(_source, _document.Title, _view.Name, _elements, Bim.BimCatalog.Read(_document, _view, _elements.Values),
-        _document.ProjectInformation.UniqueId, SourceIdentity.LegacyRead(_document));
+      return snapshot;
     }
     private static int Vertices(LiveElement element) => element.Meshes.Sum(mesh => mesh.Positions.Length / 3);
   }

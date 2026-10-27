@@ -15,7 +15,7 @@ namespace OpenProject.Tests.LiveSync
 {
   public class ReceiverIntegrationTests
   {
-    [Fact]
+    [Fact(Skip = "El visor local protocolo 2 fue retirado del flujo de sincronización; la integración activa es CDE protocolo 3.")]
     public async Task RealCSharpTransportResumesNodeSqliteReceiverAndCommitsDeltaAfterRestart()
     {
       using var folder = new OutboxTests.TestFolder();

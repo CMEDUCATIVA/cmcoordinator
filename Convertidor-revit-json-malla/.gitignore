@@ -1,0 +1,7 @@
+﻿# Código de terceros descargado para estudio: no forma parte de Cmcoordinator.
+terceros/
+# Datos de modelos de clientes: no se suben.
+pruebas/oraculos/
+# Compilación
+src/CmConv/bin/
+src/CmConv/obj/

@@ -65,7 +65,10 @@ namespace OpenProject.Revit.LiveSync.Transport
       throw new HttpRequestException("No se pudo confirmar el canal en tiempo real del CDE");
     }
 
-    private bool Fresh() => DateTime.UtcNow.Ticks - Interlocked.Read(ref _lastFrame) < TimeSpan.FromSeconds(12).Ticks;
+    // The pulse below answers with a status frame every 10 s, so silence of 35 s means a lost channel
+    // (the CDE marks a publisher offline after 45 s). Freshness never depends on viewers being open.
+    private const int PulseSeconds = 10;
+    private bool Fresh() => DateTime.UtcNow.Ticks - Interlocked.Read(ref _lastFrame) < TimeSpan.FromSeconds(35).Ticks;
     public void ExpectRevision(string revision)
     {
       lock (_gate) _expectedRevision = _status?.RevisionId == revision ? null : revision;
@@ -110,7 +113,7 @@ namespace OpenProject.Revit.LiveSync.Transport
         try
         {
           if (version == _version)
-            await Task.Delay(TimeSpan.FromSeconds(Math.Min(30, Math.Pow(2, Math.Min(failures++, 5))) + Random.Shared.NextDouble()), _cancel.Token).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromSeconds(Math.Min(30, Math.Pow(2, Math.Min(failures++, 5))) + NetCompat.NextJitter()), _cancel.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) { return; }
       }
@@ -164,7 +167,7 @@ namespace OpenProject.Revit.LiveSync.Transport
         if (connected && (DateTime.UtcNow >= next || paused != previous))
         {
           await SendAsync(socket, new { command = "message", identifier, data = JsonConvert.SerializeObject(new { action = "pulse", paused }) }, token).ConfigureAwait(false);
-          previous = paused; next = DateTime.UtcNow.AddSeconds(20);
+          previous = paused; next = DateTime.UtcNow.AddSeconds(PulseSeconds);
         }
         await Task.Delay(1000, token).ConfigureAwait(false);
       }

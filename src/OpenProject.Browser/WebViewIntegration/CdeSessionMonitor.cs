@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using System.Windows.Threading;
 using CefSharp;
 using CefSharp.Wpf;
+using OpenProject.Browser.Services;
+using OpenProject.Browser.Settings;
 using OpenProject.Shared.Authentication;
 
 namespace OpenProject.Browser.WebViewIntegration
@@ -45,18 +47,20 @@ namespace OpenProject.Browser.WebViewIntegration
     { if (args.Frame.IsMain) _browser.Dispatcher.BeginInvoke(new Action(() => OnTick(this, EventArgs.Empty))); }
     private async void OnTick(object sender, EventArgs args)
     {
-      if (_disposed || _checking || _browser.IsLoading || !CdeSessionPolicy.IsCde(_browser.Address)) return;
+      var selected = ConfigurationHandler.Settings.GetOpenProjectInstances().FirstOrDefault();
+      if (_disposed || _checking || _browser.IsLoading || !CdeSessionPolicy.IsCde(_browser.Address, selected)) return;
       _checking = true;
       var address = _browser.Address;
+      CdeSessionPolicy.TryGetOrigin(selected, out var origin);
       var sequence = ++_sequence;
       var observation = new CdeSessionObservation(CdeSessionStatus.Unavailable);
       try
       {
-        if (CdeSessionPolicy.IsCde(address) && !_browser.IsLoading)
+        if (CdeSessionPolicy.IsCde(address, selected) && !_browser.IsLoading)
         {
           using var deadline = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token);
           deadline.CancelAfter(TimeSpan.FromSeconds(8));
-          var cookieTask = _browser.GetCookieManager().VisitUrlCookiesAsync(CdeSessionPolicy.CurrentUser, true);
+          var cookieTask = _browser.GetCookieManager().VisitUrlCookiesAsync(CdeSessionPolicy.CurrentUser(origin), true);
           if (await Task.WhenAny(cookieTask, Task.Delay(TimeSpan.FromSeconds(6), deadline.Token)) != cookieTask)
             throw new OperationCanceledException(deadline.Token);
           var cookies = await cookieTask;
@@ -64,7 +68,7 @@ namespace OpenProject.Browser.WebViewIntegration
           using var handler = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false };
           using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(8) };
           observation = await new CdeSessionProbe().CheckAsync(client,
-            string.Join("; ", cookies.Select(cookie => cookie.Name + "=" + cookie.Value)), deadline.Token);
+            string.Join("; ", cookies.Select(cookie => cookie.Name + "=" + cookie.Value)), origin, deadline.Token);
         }
       }
       catch (Exception error) when (error is HttpRequestException || error is OperationCanceledException || error is System.IO.IOException || error is ObjectDisposedException)

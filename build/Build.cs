@@ -141,25 +141,16 @@ class Build : NukeBuild
       }
 
       var landingPageFolder = RootDirectory / "src" / "OpenProject.Browser" / "WebViewIntegration" / "LandingPage";
-      var landingPageIndexPath = landingPageFolder / "index.html";
-      var originalLandingPageIndexContent = ReadAllText(landingPageIndexPath);
-      try
+      // Keep the version marker for replacement with the installed Revit assembly version.
+      var zipOutputPath = landingPageFolder / "LandingPage.zip";
+      if (File.Exists(zipOutputPath))
       {
-        WriteAllText(landingPageIndexPath, originalLandingPageIndexContent.Replace("@@PLUGIN_VERSION@@", GitVersion.NuGetVersion));
-        var zipOutputPath = landingPageFolder / "LandingPage.zip";
-        if (File.Exists(zipOutputPath))
-        {
-          DeleteFile(zipOutputPath);
-        }
+        DeleteFile(zipOutputPath);
+      }
 
-        var tempZipPath = OutputDirectory / $"{Guid.NewGuid()}.zip";
-        ZipFile.CreateFromDirectory(landingPageFolder, tempZipPath);
-        MoveFile(tempZipPath, zipOutputPath);
-      }
-      finally
-      {
-        WriteAllText(landingPageIndexPath, originalLandingPageIndexContent);
-      }
+      var tempZipPath = OutputDirectory / $"{Guid.NewGuid()}.zip";
+      ZipFile.CreateFromDirectory(landingPageFolder, tempZipPath);
+      MoveFile(tempZipPath, zipOutputPath);
     });
 
   Target WriteVersionAndRepoInfo => _ => _
@@ -253,9 +244,11 @@ namespace OpenProject.Shared
           "Release-2020",
           "Release-2021",
           "Release-2022",
+          "Release-2023",
           "Release-2024",
           "Release-2025",
-          "Release-2026"
+          "Release-2026",
+          "Release-2027"
         };
 
         DotNetBuild(c => c

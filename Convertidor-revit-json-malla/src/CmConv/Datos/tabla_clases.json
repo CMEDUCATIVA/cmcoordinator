@@ -1,0 +1,255 @@
+{
+ "BuildingPad": {
+  "category": "Plataformas",
+  "ifcClass": "IfcSlab",
+  "ifcPredefined": null,
+  "casos": 3,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "Casework": {
+  "category": "Muebles de obra",
+  "ifcClass": "IfcFurniture",
+  "ifcPredefined": null,
+  "casos": 2,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "Ceiling": {
+  "category": "Techos",
+  "ifcClass": "IfcCovering",
+  "ifcPredefined": "CEILING",
+  "casos": 67,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "CurtainWall": {
+  "category": "Muros",
+  "ifcClass": "IfcCurtainWall",
+  "ifcPredefined": null,
+  "casos": 43,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "CurtainWallMullion": {
+  "category": "Montantes de muro cortina",
+  "ifcClass": "IfcMember",
+  "ifcPredefined": "MULLION",
+  "casos": 3420,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "CurtainWallPanel": {
+  "category": "Paneles de muro cortina",
+  "ifcClass": "IfcPlate",
+  "ifcPredefined": "CURTAIN_PANEL",
+  "casos": 1393,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "Door": {
+  "category": "Puertas",
+  "ifcClass": "IfcDoor",
+  "ifcPredefined": null,
+  "casos": 116,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "ElectricalEquipment": {
+  "category": "Equipos eléctricos",
+  "ifcClass": "IfcBuildingElementProxy",
+  "ifcPredefined": null,
+  "casos": 12,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "Entourage": {
+  "category": "Entorno",
+  "ifcClass": "IfcBuildingElementProxy",
+  "ifcPredefined": null,
+  "casos": 8,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "Floor": {
+  "category": "Suelos",
+  "ifcClass": "IfcSlab",
+  "ifcPredefined": "FLOOR",
+  "casos": 29,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "Furniture": {
+  "category": "Mobiliario",
+  "ifcClass": "IfcFurniture",
+  "ifcPredefined": null,
+  "casos": 134,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "GenericModel": {
+  "category": "Modelos genéricos",
+  "ifcClass": "IfcBuildingElementProxy",
+  "ifcPredefined": null,
+  "casos": 67,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "LightingFixture": {
+  "category": "Luminarias",
+  "ifcClass": "IfcLightFixture",
+  "ifcPredefined": null,
+  "casos": 51,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "Parking": {
+  "category": "Aparcamiento",
+  "ifcClass": "IfcBuildingElementProxy",
+  "ifcPredefined": null,
+  "casos": 27,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "Planting": {
+  "category": "Vegetación",
+  "ifcClass": "IfcGeographicElement",
+  "ifcPredefined": "VEGETATION",
+  "casos": 35,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "PlumbingFixture": {
+  "category": "Aparatos sanitarios",
+  "ifcClass": "IfcSanitaryTerminal",
+  "ifcPredefined": null,
+  "casos": 9,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "Railing": {
+  "category": "Barandillas",
+  "ifcClass": "IfcRailing",
+  "ifcPredefined": null,
+  "casos": 32,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "Roof": {
+  "category": "Cubiertas",
+  "ifcClass": "IfcRoof",
+  "ifcPredefined": null,
+  "casos": 8,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "SlabEdge": {
+  "category": "Bordes de losa",
+  "ifcClass": "IfcBuildingElementProxy",
+  "ifcPredefined": null,
+  "casos": 2,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "SpecialtyEquipment": {
+  "category": "Equipos especializados",
+  "ifcClass": "IfcBuildingElementProxy",
+  "ifcPredefined": null,
+  "casos": 7,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "Stair": {
+  "category": "Escaleras",
+  "ifcClass": "IfcStair",
+  "ifcPredefined": null,
+  "casos": 8,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "StairsLanding": {
+  "category": "Descansillos",
+  "ifcClass": "IfcSlab",
+  "ifcPredefined": "LANDING",
+  "casos": 5,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "StairsRun": {
+  "category": "Tramos",
+  "ifcClass": "IfcStairFlight",
+  "ifcPredefined": null,
+  "casos": 10,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "StairsStringer": {
+  "category": "Soportes",
+  "ifcClass": "IfcMember",
+  "ifcPredefined": "STRINGER",
+  "casos": 36,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "StructuralColumn": {
+  "category": "Pilares estructurales",
+  "ifcClass": "IfcColumn",
+  "ifcPredefined": "COLUMN",
+  "casos": 382,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "StructuralFoundation": {
+  "category": "Cimentación estructural",
+  "ifcClass": "IfcSlab",
+  "ifcPredefined": "BASESLAB",
+  "casos": 317,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "StructuralFraming": {
+  "category": "Armazón estructural",
+  "ifcClass": "IfcBeam",
+  "ifcPredefined": "BEAM",
+  "casos": 435,
+  "acuerdo": 94.0,
+  "alternativas": [
+   [
+    "Armazón estructural",
+    "IfcMember",
+    "BRACE",
+    22
+   ],
+   [
+    "Armazón estructural",
+    "IfcMember",
+    null,
+    4
+   ]
+  ]
+ },
+ "Wall": {
+  "category": "Muros",
+  "ifcClass": "IfcWall",
+  "ifcPredefined": null,
+  "casos": 198,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "WallSweep": {
+  "category": "Barridos de muro",
+  "ifcClass": "IfcBuildingElementProxy",
+  "ifcPredefined": null,
+  "casos": 8,
+  "acuerdo": 100.0,
+  "alternativas": []
+ },
+ "Window": {
+  "category": "Ventanas",
+  "ifcClass": "IfcWindow",
+  "ifcPredefined": null,
+  "casos": 41,
+  "acuerdo": 100.0,
+  "alternativas": []
+ }
+}

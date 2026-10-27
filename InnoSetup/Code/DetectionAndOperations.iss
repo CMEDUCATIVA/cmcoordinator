@@ -15,6 +15,9 @@ var
 #if Defined(HasRevit2022)
   Revit2022PathIndex: Integer;
 #endif
+#if Defined(HasRevit2023)
+  Revit2023PathIndex: Integer;
+#endif
 #if Defined(HasRevit2024)
   Revit2024PathIndex: Integer;
 #endif
@@ -82,6 +85,9 @@ begin
 #if Defined(HasRevit2022)
   if RevitYear = '2022' then Result := Revit2022PathIndex;
 #endif
+#if Defined(HasRevit2023)
+  if RevitYear = '2023' then Result := Revit2023PathIndex;
+#endif
 #if Defined(HasRevit2024)
   if RevitYear = '2024' then Result := Revit2024PathIndex;
 #endif
@@ -130,6 +136,9 @@ begin
 #endif
 #if Defined(HasRevit2022)
   SetInstallPathEntryState('2022', IsSelectedComponent('revit2022'));
+#endif
+#if Defined(HasRevit2023)
+  SetInstallPathEntryState('2023', IsSelectedComponent('revit2023'));
 #endif
 #if Defined(HasRevit2024)
   SetInstallPathEntryState('2024', IsSelectedComponent('revit2024'));
@@ -191,6 +200,10 @@ begin
 #if Defined(HasRevit2022)
   if IsSelectedComponent('revit2022') then
     AppendExistingInstall(ExistingInstallSummary, '2022');
+#endif
+#if Defined(HasRevit2023)
+  if IsSelectedComponent('revit2023') then
+    AppendExistingInstall(ExistingInstallSummary, '2023');
 #endif
 #if Defined(HasRevit2024)
   if IsSelectedComponent('revit2024') then
@@ -305,6 +318,10 @@ begin
 #if Defined(HasRevit2022)
   if IsSelectedComponent('revit2022') and HasExistingInstallForYear('2022') then
     Result := RemoveExistingInstallForYear('2022') and Result;
+#endif
+#if Defined(HasRevit2023)
+  if IsSelectedComponent('revit2023') and HasExistingInstallForYear('2023') then
+    Result := RemoveExistingInstallForYear('2023') and Result;
 #endif
 #if Defined(HasRevit2024)
   if IsSelectedComponent('revit2024') and HasExistingInstallForYear('2024') then

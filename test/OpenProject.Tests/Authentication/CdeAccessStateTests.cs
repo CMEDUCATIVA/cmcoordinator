@@ -125,6 +125,18 @@ namespace OpenProject.Tests.Authentication
       state.Accept("one", 3, new CdeSessionObservation(CdeSessionStatus.Authenticated, 77), now, now);
       Assert.Equal(77, state.LastSignedInUserId); Assert.True(state.HasLocalAccess);
     }
+    [Fact]
+    public void SameNumericUserAtAnotherInstanceChangesIdentity()
+    {
+      var state = new CdeAccessState(); var now = DateTime.UtcNow;
+      state.BeginBrowser("one");
+      Assert.True(state.Accept("one", 1, new CdeSessionObservation(CdeSessionStatus.Authenticated, 42,
+        "https://cmproyectos.cmeducativa.es"), now, now));
+      Assert.Equal("https://cmproyectos.cmeducativa.es", state.LastSignedInOrigin);
+      Assert.True(state.Accept("one", 2, new CdeSessionObservation(CdeSessionStatus.Authenticated, 42,
+        "https://erp.cmeducativa.es"), now, now));
+      Assert.Equal("https://erp.cmeducativa.es", state.LastSignedInOrigin);
+    }
     private static CdeAccessState SignedIn()
     {
       var state = new CdeAccessState(); var now = DateTime.UtcNow;

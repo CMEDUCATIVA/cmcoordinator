@@ -25,20 +25,31 @@ namespace OpenProject.Tests.LiveSync
       box.Save(new LiveSnapshot(DocumentIdentityKey.Create("document-a"), "Model", "3D", new Dictionary<string,LiveElement>(),
         documentId: "document-a", legacySourceId: new string('a',64)));
       var job = box.Prepare("session",1,null,true);
-      var packet = JObject.Parse(System.Text.Encoding.UTF8.GetString(box.Chunk(0)));
       Assert.Equal("document-a",job.DocumentId);
-      Assert.Equal(job.DocumentId,(string)packet["documentId"]);
-      Assert.Equal(job.LegacySourceId,(string)packet["legacySourceId"]);
+      Assert.Equal(3,job.Protocol);
       Assert.Equal(job.DocumentId,box.Active.DocumentId);
     }
     [Fact]
     public void QueueIsPersonalEvenWithSameModelAddress()
     {
-      const string link = "https://cmproyectos.cmeducativa.es/projects/18/bcf/revit/channels/6/";
+      const string link = "https://erp.cmeducativa.es/projects/18/bcf/revit/channels/6/";
       var first = new CdeDestination(link,new string('a',32),10,"Model",1);
       var second = new CdeDestination(link,new string('b',32),11,"Model",2);
       Assert.NotEqual(first.QueueKey,second.QueueKey);
       Assert.Equal(first.QueueKey,new CdeDestination(link,new string('c',32),10,"Model",1).QueueKey);
+    }
+    [Fact]
+    public void SavedConnectionRetainsHistoryIdentityAndReadsLegacyRecord()
+    {
+      const string link = "https://erp.cmeducativa.es/projects/18/bcf/revit/channels/6/";
+      var verified = new CdeDestination(link,new string('a',32),10,"Model",17,"Project","Model");
+      var restored = CdeCredentialVault.ParseRecord(CdeCredentialVault.SerializeRecord(verified));
+      Assert.Equal(verified.QueueKey,restored.QueueKey);
+      Assert.Equal(verified.UserId,restored.UserId);
+      Assert.Equal(verified.ModelName,restored.ModelName);
+      var legacy = CdeCredentialVault.ParseRecord("{\"link\":\"" + link + "\",\"token\":\"" + new string('a',32) + "\"}");
+      Assert.Equal(0,legacy.UserId);
+      Assert.Equal(0,legacy.ConnectionId);
     }
   }
 }

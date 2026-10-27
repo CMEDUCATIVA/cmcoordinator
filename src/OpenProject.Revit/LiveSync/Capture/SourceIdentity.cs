@@ -16,7 +16,7 @@ namespace OpenProject.Revit.LiveSync.Capture
         location = $"cloud:{path.GetProjectGUID()}:{path.GetModelGUID()}";
       }
       else location = string.IsNullOrEmpty(document.PathName)
-        ? $"unsaved:{Environment.ProcessId}:{document.GetHashCode()}" : document.PathName.ToLowerInvariant();
+        ? $"unsaved:{NetCompat.ProcessId}:{document.GetHashCode()}" : document.PathName.ToLowerInvariant();
       return SyncEncoding.Hash(document.ProjectInformation.UniqueId + "|" + location + "|local-v2");
     }
   }

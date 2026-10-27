@@ -1005,7 +1005,11 @@ namespace OpenProject.Revit.Services
             reference,
             false,
             TagMode.TM_ADDBY_CATEGORY,
+#if REVIT2022_OR_GREATER
             TagOrientation.AnyModelDirection,
+#else
+            TagOrientation.Horizontal,
+#endif
             point
           );
           return true;
@@ -1859,7 +1863,13 @@ namespace OpenProject.Revit.Services
           floorFailureOptions.SetFailuresPreprocessor(new AcceptAllFailuresPreprocessor());
           tx.SetFailureHandlingOptions(floorFailureOptions);
 
+#if REVIT2022_OR_GREATER
           floor = Floor.Create(doc, new List<CurveLoop> { loop }, floorType.Id, level.Id);
+#else
+          var outline = new CurveArray();
+          foreach (var curve in loop) outline.Append(curve);
+          floor = doc.Create.NewFloor(outline, floorType, level, false);
+#endif
           tx.Commit();
         }
 

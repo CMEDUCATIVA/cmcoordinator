@@ -112,7 +112,7 @@ namespace OpenProject.Revit.Data
     /// <returns></returns>
     public static double ToMeters(this double internalUnits)
     {
-return UnitUtils.ConvertFromInternalUnits(internalUnits, UnitTypeId.Meters);
+return LiveSync.RevitCompat.InternalToMeters(internalUnits);
     }
 
     /// <summary>
@@ -122,7 +122,7 @@ return UnitUtils.ConvertFromInternalUnits(internalUnits, UnitTypeId.Meters);
     /// <returns></returns>
     public static double ToInternalRevitUnit(this double meters)
     {
-return UnitUtils.ConvertToInternalUnits(meters, UnitTypeId.Meters);
+return LiveSync.RevitCompat.MetersToInternal(meters);
     }
 
     /// <summary>

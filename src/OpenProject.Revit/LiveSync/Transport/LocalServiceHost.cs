@@ -30,7 +30,7 @@ namespace OpenProject.Revit.LiveSync.Transport
         if (!File.Exists(Path.Combine(directory, "server.mjs"))) throw new InvalidOperationException("Faltan los archivos del visor local.");
         var start = new ProcessStartInfo(FindNode()) { WorkingDirectory = directory, UseShellExecute = false,
           CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden };
-        start.ArgumentList.Add("server.mjs");
+        NetCompat.SetArguments(start, new[] { "server.mjs" });
         using var process = Process.Start(start);
         for (var i = 0; i < 20; i++)
         {

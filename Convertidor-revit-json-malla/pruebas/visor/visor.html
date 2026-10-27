@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visor local cmconv</title>
+<style>
+  :root { --fondo: #f4f6f8; --texto: #1f2933; --panel: #ffffffee; --borde: #d6dde8; }
+  @media (prefers-color-scheme: dark) { :root { --fondo: #15191e; --texto: #e6e9ee; --panel: #1f252bee; --borde: #33404d; } }
+  html, body { margin: 0; height: 100%; background: var(--fondo); color: var(--texto); font: 14px system-ui, sans-serif; }
+  canvas { width: 100%; height: 100%; display: block; }
+  #panel { position: absolute; top: 12px; left: 12px; max-width: 360px; padding: 10px 14px; background: var(--panel); border: 1px solid var(--borde); border-radius: 8px; }
+  #panel h1 { font-size: 15px; margin: 0 0 6px; }
+  #panel p { margin: 2px 0; }
+</style>
+</head>
+<body>
+<canvas id="lienzo"></canvas>
+<div id="panel"><h1>Visor local cmconv</h1><p id="estado">Cargando…</p></div>
+<script type="module">
+// Local test viewer: loads cmconv's protocol-3 parts from disk (served next to this page) with the same xeokit the CDE uses.
+import { Viewer, SceneModel } from "https://cdn.jsdelivr.net/npm/@xeokit/xeokit-sdk@2.6.5/dist/xeokit-sdk.es.min.js";
+
+const modelo = new URLSearchParams(location.search).get("modelo") || "arquitectura-2026-mixtas";
+const estado = document.getElementById("estado");
+const viewer = new Viewer({ canvasId: "lienzo", transparent: true });
+const hex = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16) / 255);
+// Revit is Z-up; xeokit is Y-up, as the CDE viewer converts it: (x, y, z) -> (x, z, -y).
+const yUp = (p) => { const out = new Array(p.length); for (let i = 0; i < p.length; i += 3) { out[i] = p[i]; out[i + 1] = p[i + 2]; out[i + 2] = -p[i + 1]; } return out; };
+
+async function cargar() {
+  const manifest = await (await fetch(`${modelo}/manifest.json`)).json();
+  const model = new SceneModel(viewer.scene, { id: modelo, isModel: true });
+  let elementos = 0, triangulos = 0;
+  for (let i = 0; i < manifest.chunkCount; i++) {
+    const part = await (await fetch(`${modelo}/parts/${String(i).padStart(6, "0")}.json`)).json();
+    if (part.kind !== "elements") continue;
+    const shapes = part.geometries || {};
+    for (const e of part.updated) {
+      const meshIds = [];
+      e.meshes.forEach((m, k) => {
+        let positions = m.positions, indices = m.indices;
+        if (m.geometry) {
+          const s = shapes[m.geometry];
+          positions = s.positions.map((v, j) => v + m.offset[j % 3]); indices = s.indices;
+        }
+        const id = `${e.id}:${k}`;
+        model.createMesh({ id, primitive: "triangles", positions: yUp(positions), indices, color: hex(m.color), opacity: m.opacity });
+        meshIds.push(id); triangulos += indices.length / 3;
+      });
+      if (meshIds.length) { model.createEntity({ id: e.id, isObject: true, meshIds }); elementos++; }
+    }
+    estado.textContent = `Paquete ${i + 1} de ${manifest.chunkCount}…`;
+  }
+  model.finalize();
+  // Isometric view from the south-east, framed on the model.
+  const [x0, y0, z0, x1, y1, z1] = model.aabb;
+  const c = [(x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2], r = Math.max(x1 - x0, y1 - y0, z1 - z0);
+  viewer.camera.look = c; viewer.camera.up = [0, 1, 0];
+  viewer.camera.eye = [c[0] + r * 0.9, c[1] + r * 0.7, c[2] + r * 0.9];
+  viewer.cameraFlight.jumpTo({ aabb: model.aabb });
+  estado.innerHTML = `<b>${manifest.title}</b><br>${elementos.toLocaleString("es")} elementos · ${Math.round(triangulos).toLocaleString("es")} triángulos`;
+  document.body.dataset.listo = "1";
+}
+cargar().catch((e) => { estado.textContent = "Error: " + e.message; document.body.dataset.listo = "error"; });
+</script>
+</body>
+</html>

@@ -18,6 +18,10 @@ namespace OpenProject.Revit.Entry
     private static DateTime _nextShowAttempt;
     public static bool CanUseLocalSync => Access.HasLocalAccess;
     public static long SignedInUserId => Access.LastSignedInUserId;
+    public static bool MatchesOrigin(Uri address)
+      => Access.HasLocalAccess && CdeSessionPolicy.IsCde(address?.AbsoluteUri, Access.LastSignedInOrigin);
+    public static bool MatchesDestination(Uri address, long userId)
+      => MatchesOrigin(address) && Access.LastSignedInUserId == userId;
     public static bool HasFreshCdeSession => RibbonButtonClickHandler.IsBrowserRunning && Access.HasFreshCdeSession(DateTime.UtcNow);
     public static void Initialize(UIControlledApplication application) => application.Idling += OnIdle;
     public static void Shutdown(UIControlledApplication application)
@@ -31,11 +35,13 @@ namespace OpenProject.Revit.Entry
         var state = JObject.Parse(payload);
         if (!Enum.TryParse((string)state["sessionState"], out CdeSessionStatus status)) return;
         var previous = Access.LastSignedInUserId;
+        var previousOrigin = Access.LastSignedInOrigin;
         var hadAccess = Access.HasLocalAccess;
-        if (Access.Accept(nonce, (long)state["sequence"], new CdeSessionObservation(status, (long)state["userId"]),
+        if (Access.Accept(nonce, (long)state["sequence"], new CdeSessionObservation(status, (long)state["userId"], (string)state["origin"]),
             (DateTime)state["observedUtc"], DateTime.UtcNow))
         {
-          if (previous > 0 && Access.LastSignedInUserId != previous) _accountChanged = true;
+          if (previous > 0 && (Access.LastSignedInUserId != previous ||
+            !string.Equals(Access.LastSignedInOrigin, previousOrigin, StringComparison.OrdinalIgnoreCase))) _accountChanged = true;
           if (hadAccess && !Access.HasLocalAccess) _signedOut = true;
         }
       }

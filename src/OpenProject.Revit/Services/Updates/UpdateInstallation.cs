@@ -66,8 +66,7 @@ namespace OpenProject.Revit.Services.Updates
         Receipt = ReceiptPath(assembly), Root, State = "waiting" }));
       var start = new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe"))
         { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden };
-      foreach (var arg in new[] { "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", helper, "-JobFile", jobPath })
-        start.ArgumentList.Add(arg);
+      LiveSync.NetCompat.SetArguments(start, new[] { "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", helper, "-JobFile", jobPath });
       using var process = Process.Start(start) ?? throw new InvalidOperationException("No pudo iniciarse el instalador diferido.");
     }
   }

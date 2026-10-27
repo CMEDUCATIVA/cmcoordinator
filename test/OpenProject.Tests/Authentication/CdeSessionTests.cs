@@ -13,14 +13,28 @@ namespace OpenProject.Tests.Authentication
   {
     private const string User = "{\"_type\":\"User\",\"status\":\"active\",\"id\":42,\"login\":\"modelador\"}";
     [Theory]
-    [InlineData("https://cmproyectos.cmeducativa.es/", true)]
-    [InlineData("https://cmproyectos.cmeducativa.es/login", true)]
+    [InlineData("https://erp.cmeducativa.es/", true)]
+    [InlineData("https://erp.cmeducativa.es/login", true)]
+    [InlineData("https://cmproyectos.cmeducativa.es/", false)]
+    [InlineData("https://erp.cmeducativa.es.evil.test/", false)]
+    [InlineData("https://erp.cmeducativa.es:444/", false)]
+    [InlineData("https://user@erp.cmeducativa.es/", false)]
+    [InlineData("http://erp.cmeducativa.es/", false)]
     [InlineData("https://cmproyectos.cmeducativa.es.evil.test/", false)]
     [InlineData("https://evil.test/?https://cmproyectos.cmeducativa.es", false)]
     [InlineData("https://cmproyectos.cmeducativa.es:444/", false)]
     [InlineData("https://user@cmproyectos.cmeducativa.es/", false)]
     [InlineData("http://cmproyectos.cmeducativa.es/", false)]
-    public void OnlyCanonicalSecureOrigin(string url, bool expected) => Assert.Equal(expected, CdeSessionPolicy.IsCde(url));
+    public void OnlySelectedSecureOrigin(string url, bool expected)
+      => Assert.Equal(expected, CdeSessionPolicy.IsCde(url, "https://erp.cmeducativa.es"));
+
+    [Fact]
+    public void AnySelectedHttpsInstanceCanAuthenticate()
+    {
+      Assert.True(CdeSessionPolicy.IsCde("https://bim.example.org:8443/projects", "https://bim.example.org:8443"));
+      Assert.Equal("https://bim.example.org:8443/api/v3/users/me", CdeSessionPolicy.CurrentUser("https://bim.example.org:8443"));
+      Assert.False(CdeSessionPolicy.IsCde("https://bim.example.org/projects", "https://bim.example.org:8443"));
+    }
 
     [Theory]
     [InlineData("<html>login</html>")]
@@ -61,15 +75,16 @@ namespace OpenProject.Tests.Authentication
     {
       var handler = new ResponseHandler(request =>
       {
-        Assert.Equal(CdeSessionPolicy.CurrentUser, request.RequestUri.AbsoluteUri);
+        Assert.Equal(CdeSessionPolicy.CurrentUser("https://erp.cmeducativa.es"), request.RequestUri.AbsoluteUri);
         Assert.Null(request.Headers.Authorization);
         Assert.Equal("session=fixture", string.Join("", request.Headers.GetValues("Cookie")));
         return new HttpResponseMessage((HttpStatusCode)status) { Content = new StringContent(User, System.Text.Encoding.UTF8, media) };
       });
       using var client = new HttpClient(handler);
-      var observation = await new CdeSessionProbe().CheckAsync(client, "session=fixture", CancellationToken.None);
+      var observation = await new CdeSessionProbe().CheckAsync(client, "session=fixture", "https://erp.cmeducativa.es", CancellationToken.None);
       Assert.Equal(expected ? 42L : 0L, observation.UserId);
       Assert.Equal(expected ? CdeSessionStatus.Authenticated : status == 401 ? CdeSessionStatus.SignedOut : CdeSessionStatus.Unavailable, observation.Status);
+      if (expected) Assert.Equal("https://erp.cmeducativa.es", observation.Origin);
     }
 
     [Fact]
@@ -77,14 +92,14 @@ namespace OpenProject.Tests.Authentication
     {
       using var client = new HttpClient(new ResponseHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
       { Content = new StringContent(new string(' ', 65537) + User, System.Text.Encoding.UTF8, "application/json") }));
-      Assert.Equal(CdeSessionStatus.Unavailable, (await new CdeSessionProbe().CheckAsync(client, "", CancellationToken.None)).Status);
+      Assert.Equal(CdeSessionStatus.Unavailable, (await new CdeSessionProbe().CheckAsync(client, "", "https://erp.cmeducativa.es", CancellationToken.None)).Status);
     }
     [Fact]
     public async Task ProbeHonorsCancellation()
     {
       using var source = new CancellationTokenSource(); source.Cancel();
       using var client = new HttpClient(new ResponseHandler(_ => throw new Exception("Must not send")));
-      await Assert.ThrowsAnyAsync<OperationCanceledException>(() => new CdeSessionProbe().CheckAsync(client, "", source.Token));
+      await Assert.ThrowsAnyAsync<OperationCanceledException>(() => new CdeSessionProbe().CheckAsync(client, "", "https://erp.cmeducativa.es", source.Token));
     }
     private sealed class ResponseHandler : HttpMessageHandler
     {

@@ -49,7 +49,7 @@ namespace OpenProject.Revit.LiveSync.Telemetry
             for (var i = 4; i >= 1; i--)
             {
               var from = i == 1 ? path : path + "." + (i - 1);
-              if (File.Exists(from)) File.Move(from, path + "." + i, true);
+              if (File.Exists(from)) NetCompat.MoveReplacing(from, path + "." + i);
             }
           }
           using (var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite))

@@ -18,13 +18,13 @@ namespace OpenProject.Revit.LiveSync.Transport
     private static string FilePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Cmcoordinator", "LiveSync", "cde-connection.bin");
     public static void Save(CdeDestination destination)
     {
-      var bytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(new { link = destination.Address.AbsoluteUri, token = destination.Token }));
+      var bytes = Encoding.UTF8.GetBytes(SerializeRecord(destination));
       try
       {
         Directory.CreateDirectory(Path.GetDirectoryName(FilePath));
         var encrypted = Transform(bytes, true);
         var temporary = FilePath + ".pending";
-        File.WriteAllBytes(temporary, encrypted); File.Move(temporary, FilePath, true);
+        File.WriteAllBytes(temporary, encrypted); NetCompat.MoveReplacing(temporary, FilePath);
       }
       finally { Array.Clear(bytes, 0, bytes.Length); }
     }
@@ -35,11 +35,22 @@ namespace OpenProject.Revit.LiveSync.Transport
       try
       {
         plain = Transform(File.ReadAllBytes(FilePath), false);
-        var value = Newtonsoft.Json.Linq.JObject.Parse(Encoding.UTF8.GetString(plain));
-        return new CdeDestination((string)value["link"], (string)value["token"]);
+        return ParseRecord(Encoding.UTF8.GetString(plain));
       }
       catch (Exception) { return null; } // A different Windows account must reconnect.
       finally { if (plain != null) Array.Clear(plain, 0, plain.Length); }
+    }
+    internal static string SerializeRecord(CdeDestination destination) => JsonConvert.SerializeObject(new
+    {
+      link = destination.Address.AbsoluteUri, token = destination.Token, userId = destination.UserId,
+      connectionId = destination.ConnectionId, projectName = destination.ProjectName, modelName = destination.ModelName
+    });
+    internal static CdeDestination ParseRecord(string json)
+    {
+      var value = Newtonsoft.Json.Linq.JObject.Parse(json);
+      return new CdeDestination((string)value["link"], (string)value["token"],
+        (long?)value["userId"] ?? 0, connectionId: (long?)value["connectionId"] ?? 0,
+        projectName: (string)value["projectName"], modelName: (string)value["modelName"]);
     }
     private static byte[] Transform(byte[] bytes, bool encrypt)
     {

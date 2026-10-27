@@ -43,10 +43,6 @@ namespace OpenProject.Browser.WebViewIntegration
       // Remove the "Revit Add-In settings" div on every page
       Browser.FrameLoadEnd += BrowserOnFrameLoadEnd_RemoveRevitSettingsDiv;
 
-      // Always start on the canonical CDE; Cef retains the user's session cookies.
-      ConfigurationHandler.SaveSelectedInstance(OpenProject.Shared.Authentication.CdeSessionPolicy.Origin);
-      Browser.Address = OpenProject.Shared.Authentication.CdeSessionPolicy.Home;
-
       Browser.DownloadHandler = _downloadHandler;
       // This handles checking of valid urls, otherwise they're opened in
       // the system browser
@@ -83,6 +79,8 @@ namespace OpenProject.Browser.WebViewIntegration
           }
         });
 
+      // Set the initial page after the bridge and navigation handlers are ready.
+      Browser.Address = EmbeddedLandingPageHandler.GetEmbeddedLandingPageIndexUrl();
     }
 
     // Injects JS after the main frame finishes loading to remove the target div

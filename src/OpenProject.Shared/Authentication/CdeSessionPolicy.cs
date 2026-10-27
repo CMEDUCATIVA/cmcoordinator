@@ -5,12 +5,20 @@ namespace OpenProject.Shared.Authentication
 {
   public static class CdeSessionPolicy
   {
-    public const string Origin = "https://cmproyectos.cmeducativa.es";
-    public const string Home = Origin + "/";
-    public const string CurrentUser = Origin + "/api/v3/users/me";
-    public static bool IsCde(string address) => Uri.TryCreate(address, UriKind.Absolute, out var uri)
-      && uri.Scheme == "https" && uri.Host.Equals("cmproyectos.cmeducativa.es", StringComparison.OrdinalIgnoreCase)
-      && uri.IsDefaultPort && string.IsNullOrEmpty(uri.UserInfo);
+    public static bool TryGetOrigin(string address, out string origin)
+    {
+      origin = null;
+      if (!Uri.TryCreate(address, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps
+        || string.IsNullOrEmpty(uri.Host) || !string.IsNullOrEmpty(uri.UserInfo)) return false;
+      origin = uri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
+      return true;
+    }
+    public static bool IsCde(string address, string selectedInstance)
+      => TryGetOrigin(address, out var origin) && TryGetOrigin(selectedInstance, out var selected)
+        && string.Equals(origin, selected, StringComparison.OrdinalIgnoreCase);
+    public static string CurrentUser(string origin)
+      => TryGetOrigin(origin, out var canonical) ? canonical + "/api/v3/users/me"
+        : throw new ArgumentException("Origen CDE HTTPS inválido.", nameof(origin));
 
     public static long ReadUser(string json)
     {

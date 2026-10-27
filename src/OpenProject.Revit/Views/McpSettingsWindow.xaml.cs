@@ -28,6 +28,14 @@ namespace OpenProject.Revit.Views
       LoadSettings();
     }
 
+    public void ShowUpdates(bool startDownload)
+    {
+      SectionList.SelectedIndex = 3;
+      Show();
+      Activate();
+      if (startDownload) OnUpdateClick(UpdateButton, new RoutedEventArgs());
+    }
+
     private void LoadSettings()
     {
       _loadedSettings = McpSettingsStore.Load();

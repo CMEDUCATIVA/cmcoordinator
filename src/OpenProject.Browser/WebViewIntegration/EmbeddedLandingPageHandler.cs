@@ -69,6 +69,14 @@ namespace OpenProject.Browser.WebViewIntegration
       fs.Close();
 
       ZipFile.ExtractToDirectory(tempPath, landingPageFolder);
+      File.Delete(tempPath);
+      var index = Path.Combine(landingPageFolder, "index.html");
+      var revitAssembly = Path.GetFullPath(Path.Combine(
+        Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location), "..", "OpenProject.Revit.dll"));
+      var version = File.Exists(revitAssembly)
+        ? AssemblyName.GetAssemblyName(revitAssembly).Version
+        : Assembly.GetExecutingAssembly().GetName().Version;
+      File.WriteAllText(index, File.ReadAllText(index).Replace("@@PLUGIN_VERSION@@", version.ToString(3)));
     }
 
     private static Stream GetEmbeddedResourceZipStream()

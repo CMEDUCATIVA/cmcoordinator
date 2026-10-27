@@ -16,7 +16,7 @@ namespace OpenProject.Revit.Views
 
     private void InitializeUpdates()
     {
-      InstalledVersionText.Text = "Versión instalada: " + Assembly.GetExecutingAssembly().GetName().Version;
+      InstalledVersionText.Text = "Versión instalada: " + Assembly.GetExecutingAssembly().GetName().Version.ToString(3);
       UpdateStatusText.Text = UpdateInstallation.PendingStatus() ?? "Busca publicaciones estables en CMEDUCATIVA/cmcoordinator.";
     }
 

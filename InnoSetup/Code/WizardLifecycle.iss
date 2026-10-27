@@ -38,6 +38,10 @@ begin
   if IsSelectedComponent('revit2022') then
     Result := Result + 'Revit 2022: ' + GetInstallTargetForYear('2022') + NewLine;
 #endif
+#if Defined(HasRevit2023)
+  if IsSelectedComponent('revit2023') then
+    Result := Result + 'Revit 2023: ' + GetInstallTargetForYear('2023') + NewLine;
+#endif
 #if Defined(HasRevit2024)
   if IsSelectedComponent('revit2024') then
     Result := Result + 'Revit 2024: ' + GetInstallTargetForYear('2024') + NewLine;
@@ -142,6 +146,10 @@ begin
 #if Defined(HasRevit2022)
   Revit2022PathIndex := InstallPathPage.Add('Ruta Revit 2022');
   InstallPathPage.Values[Revit2022PathIndex] := GetDefaultInstallTargetForYear('2022');
+#endif
+#if Defined(HasRevit2023)
+  Revit2023PathIndex := InstallPathPage.Add('Ruta Revit 2023');
+  InstallPathPage.Values[Revit2023PathIndex] := GetDefaultInstallTargetForYear('2023');
 #endif
 #if Defined(HasRevit2024)
   Revit2024PathIndex := InstallPathPage.Add('Ruta Revit 2024');
