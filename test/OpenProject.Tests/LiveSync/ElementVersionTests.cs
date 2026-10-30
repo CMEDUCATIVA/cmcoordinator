@@ -130,6 +130,25 @@ namespace OpenProject.Tests.LiveSync
     }
 
     [Fact]
+    public void AModelFromBeforeVersionsStartsAtVersionZeroAndItsChangesTravel()
+    {
+      using var folder = new OutboxTests.TestFolder();
+      using var outbox = new SqliteOutbox(folder.Path);
+      var (w1, w2) = (Element("W1"), Element("W2"));
+      outbox.Save(Snapshot(w1, w2));
+      outbox.RecordBaseline();
+      // The CDE has huellas but no versions yet (models published before element versions).
+      var remote = new RemoteFingerprints { Fingerprints = new() { ["W1"] = Print(w1), ["W2"] = Print(Element("W2", x: 8)) },
+        Versions = new Dictionary<string, long?[]>() };
+      Assert.Equal(2, outbox.ResolveKnown(remote));
+      outbox.Save(Snapshot(Element("W1", x: 4), Element("W2", x: 4)));
+      var part = ElementsPart(outbox, outbox.Prepare("s", 1, "rev", false, merge: true, remote: remote.Fingerprints, gone: new List<string>(),
+        versions: new SqliteOutbox.VersionPlan { Remote = remote.Versions }));
+      Assert.Equal(0, (long)part["versions"]["W1"]["bg"]);   // same as the CDE: starts from 0, enters
+      Assert.Equal(-1, (long)part["versions"]["W2"]["bg"]);  // already different: an old copy
+    }
+
+    [Fact]
     public void AnElementThatMatchesTheCdeAgainStopsDiffering()
     {
       using var folder = new OutboxTests.TestFolder();

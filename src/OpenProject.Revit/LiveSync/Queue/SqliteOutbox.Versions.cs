@@ -57,9 +57,11 @@ namespace OpenProject.Revit.LiveSync.Queue
       using (var reader = cmd.ExecuteReader()) while (reader.Read()) pending.Add((reader.GetString(0), reader.GetString(1)));
       foreach (var (id, reference) in pending)
       {
-        if (!prints.Versions.TryGetValue(id, out var version) || version == null || version.Length < 2) continue;
+        // An element the CDE has from before it versioned elements is at version 0.
+        var hasVersion = prints.Versions.TryGetValue(id, out var version) && version?.Length >= 2;
+        if (!hasVersion && !remote.ContainsKey(id)) continue;
         var same = remote.TryGetValue(id, out var print) && print == reference.Substring(0, FingerprintLength);
-        SetKnown(id, same ? version[0] ?? 0 : -1, same ? version[1] ?? 0 : -1); resolved++;
+        SetKnown(id, same ? (hasVersion ? version[0] ?? 0 : 0) : -1, same ? (hasVersion ? version[1] ?? 0 : 0) : -1); resolved++;
       }
       var matching = new List<string>();
       using (var cmd = Command("SELECT d.id,d.hash FROM differs x JOIN desired d ON x.id=d.id"))
