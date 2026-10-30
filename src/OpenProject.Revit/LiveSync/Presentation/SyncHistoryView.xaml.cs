@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
@@ -13,6 +14,8 @@ namespace OpenProject.Revit.LiveSync.Presentation
   public partial class SyncHistoryView : UserControl
   {
     private readonly ObservableCollection<EntryView> _items = new();
+    private readonly ObservableCollection<OutsideView> _outside = new();
+    private string _outsideSignature;
     private string _directory, _filter = "Todos", _fingerprint;
     private string _activeJobId;
     private int _visible = 5, _generation;
@@ -23,6 +26,7 @@ namespace OpenProject.Revit.LiveSync.Presentation
     {
       InitializeComponent();
       Events.ItemsSource = _items;
+      OutItems.ItemsSource = _outside;
       _ready = true;
       PaintFilter();
     }
@@ -32,10 +36,11 @@ namespace OpenProject.Revit.LiveSync.Presentation
       if (!_ready) return;
       var pending = progress?.HasPendingChanges == true;
       var processing = progress?.JobId != null;
-      QueueState.Text = progress?.Attention == true ? "Atención" : processing
-        ? "En proceso" : pending ? "En espera" : "Al día";
-      QueueDot.Fill = progress?.Attention == true ? Brushes.OrangeRed : processing || pending
+      var outside = progress?.Differs ?? Array.Empty<DifferingElement>();
+      QueueState.Text = DifferDetail.QueueState(progress);
+      QueueDot.Fill = progress?.Attention == true ? Brushes.OrangeRed : processing || pending || outside.Count > 0
         ? Brushes.Goldenrod : Brushes.LimeGreen;
+      ShowOutside(outside);
       var fingerprint = directory + "/" + progress?.JobId + "/" +
         string.Join(";", progress?.Jobs?.Select(j => j.Id + j.State + j.Time) ?? Array.Empty<string>());
       if (fingerprint == _fingerprint && DateTime.UtcNow - _lastRead < TimeSpan.FromSeconds(3)) return;
@@ -43,6 +48,19 @@ namespace OpenProject.Revit.LiveSync.Presentation
       _directory = directory;
       _activeJobId = progress?.JobId;
       Reload();
+    }
+
+    // The list follows the queue: an element that matches again leaves it; what is unfolded stays unfolded.
+    private void ShowOutside(IReadOnlyList<DifferingElement> outside)
+    {
+      OutSection.Visibility = outside.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+      OutTitle.Text = DifferDetail.Title(outside.Count);
+      var signature = string.Join(";", outside.Select(item => string.Join("|", item.Id, string.Join("|", DifferDetail.Lines(item)))));
+      if (signature == _outsideSignature) return;
+      _outsideSignature = signature;
+      var unfolded = new HashSet<string>(_outside.Where(item => item.IsExpanded).Select(item => item.Id));
+      _outside.Clear();
+      foreach (var item in outside) _outside.Add(new OutsideView(item) { IsExpanded = unfolded.Contains(item.Id) });
     }
 
     private async Task LoadAsync()
@@ -132,6 +150,23 @@ namespace OpenProject.Revit.LiveSync.Presentation
       }
     }
     private void MoreClick(object sender, RoutedEventArgs e) { _visible += 5; Reload(); }
+    public sealed class OutsideView : INotifyPropertyChanged
+    {
+      public event PropertyChangedEventHandler PropertyChanged;
+      private bool _isExpanded;
+      public bool IsExpanded
+      {
+        get => _isExpanded;
+        set { if (_isExpanded == value) return; _isExpanded = value;
+          PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsExpanded))); }
+      }
+      public string Id { get; }
+      public string Name { get; }
+      public string Versions { get; }
+      public IReadOnlyList<string> Lines { get; }
+      public OutsideView(DifferingElement item)
+      { Id = item.Id; Name = DifferDetail.Name(item); Versions = DifferDetail.Versions(item); Lines = DifferDetail.Lines(item).Skip(1).ToList(); }
+    }
     private sealed class EntryView : INotifyPropertyChanged
     {
       public event PropertyChangedEventHandler PropertyChanged;

@@ -274,12 +274,12 @@
    <Border Visibility="{Binding DiffersVisibility,Mode=OneWay}" BorderThickness="1" CornerRadius="4" Padding="10,8" Margin="0,0,0,14"
      Background="{DynamicResource NoticeWarningBackground}" BorderBrush="{DynamicResource NoticeWarningBorder}"
      AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="{Binding DiffersTitle,Mode=OneWay}">
-    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
      <Path Grid.Column="0" Style="{StaticResource LineIcon}" Width="15" Height="15" Margin="0,1,8,0" VerticalAlignment="Top" Data="M12,3 L22,20 L2,20 Z M12,9 L12,14 M12,16.5 L12,17"/>
      <StackPanel Grid.Column="1">
       <TextBox Text="{Binding DiffersTitle,Mode=OneWay}" Style="{StaticResource SelectableInfo}" FontSize="12" FontWeight="SemiBold"/>
       <TextBox Text="{Binding DiffersText,Mode=OneWay}" Style="{StaticResource SelectableCaption}" Margin="0,2,0,6"/>
-      <ItemsControl ItemsSource="{Binding DiffersLines,Mode=OneWay}" AutomationProperties.Name="Elementos que difieren del CDE">
+      <ItemsControl ItemsSource="{Binding DiffersLines,Mode=OneWay}" AutomationProperties.Name="Elementos que no entraron">
        <ItemsControl.ItemTemplate><DataTemplate>
         <TextBox Text="{Binding Mode=OneWay}" Style="{StaticResource SelectableCaption}" Margin="0,0,0,2"/>
        </DataTemplate></ItemsControl.ItemTemplate>
@@ -295,6 +295,10 @@
        </Button>
       </Grid>
      </StackPanel>
+     <Button Grid.Column="2" Style="{StaticResource SquareButton}" Tag="dismissDiffers" Click="DismissDiffersClick" Margin="8,0,0,0" Padding="8,2" VerticalAlignment="Top"
+       ToolTip="Oculta este aviso; el detalle sigue en Cola e historial" AutomationProperties.Name="Cerrar el aviso">
+      <TextBlock Text="Cerrar" FontSize="12" VerticalAlignment="Center"/>
+     </Button>
     </Grid>
    </Border>
    <Border Background="{DynamicResource PanelSurface}" BorderBrush="{DynamicResource PanelBorder}" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,14">

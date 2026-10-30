@@ -504,6 +504,28 @@ namespace OpenProject.Tests.LiveSync
       Assert.False(unknownLevel.CanReplace);
     }
     [Fact]
+    public void TheNoticeClosesWithoutHidingAnElementThatStaysOutLater()
+    {
+      var model = new SyncPanelViewModel();
+      SyncProgress Progress(params string[] ids) => new() { Stage = "Al día", ReceiverRevision = "r", Differs = ids.Select(id => new DifferingElement { Id = id, Name = id }).ToList() };
+      void Show(SyncProgress progress) => model.Refresh("M", "C", progress, "A", capturedElements: 1, cdeConnected: true, hasSyncWorker: true);
+      Show(Progress("A", "B", "C"));
+      Assert.Equal(System.Windows.Visibility.Visible, model.DiffersVisibility);
+      Assert.Equal("3 elementos no entraron", model.DiffersTitle);
+      Assert.Equal("Sincronizado · 3 fuera", model.TransferTitle);
+      Assert.Equal("Revisión confirmada en CDE", model.BlockLabel);
+      model.DismissDiffers();
+      Assert.Equal(System.Windows.Visibility.Collapsed, model.DiffersVisibility);
+      // Closed: the state keeps saying it.
+      Assert.Equal("Sincronizado · 3 fuera", model.TransferTitle);
+      Show(Progress("A", "B", "C", "D"));
+      Assert.Equal(System.Windows.Visibility.Visible, model.DiffersVisibility);
+      // The list empties even though nothing else changed: the panel follows it.
+      Show(Progress());
+      Assert.Equal(System.Windows.Visibility.Collapsed, model.DiffersVisibility);
+      Assert.Equal("Sincronizado", model.TransferTitle);
+    }
+    [Fact]
     public void HistoryControlLoadsAtNarrowDockWidth()
     {
       RunSta(() =>
@@ -546,6 +568,24 @@ namespace OpenProject.Tests.LiveSync
         revision.Select(0, revision.Text.Length);
         Assert.Equal(revision.Text, revision.SelectedText);
         Assert.DoesNotContain(Descendants(history).OfType<Button>(), b => AutomationProperties.GetName(b) == "Copiar identificador de revisión");
+        // What stayed out: grouped, with each element unfolding its detail; it leaves when the list empties.
+        var outside = new[] { new DifferingElement { Id = "A", Name = "Muro A", Reason = "stale", By = "Juan", Mine = 1, Theirs = 2 }, new DifferingElement { Id = "B", Reason = "removed", Aspects = new[] { "g" } } };
+        history.Update(folder.Path, new SyncProgress { Differs = outside });
+        history.UpdateLayout();
+        Assert.Equal("2 elementos no entraron", Descendants(history).OfType<TextBlock>().First(t => t.Name == "OutTitle").Text);
+        Assert.Contains(Descendants(history).OfType<TextBlock>(), t => t.Text == "Al día · 2 fuera");
+        Descendants(history).OfType<ToggleButton>().First(b => b.Name == "OutToggle").IsChecked = true;
+        history.UpdateLayout();
+        var entries = Descendants(history).OfType<ToggleButton>().Where(b => (string)b.Tag == "OutEntry").ToArray();
+        Assert.Equal(2, entries.Length);
+        Assert.Contains(Descendants(entries[0]).OfType<TextBlock>(), t => t.Text == "Tu copia v1 · CDE v2");
+        entries[0].IsChecked = true;
+        history.UpdateLayout();
+        Assert.Contains(Descendants(history).OfType<TextBox>(), t => t.Text.StartsWith("Motivo: Juan cambió este elemento"));
+        history.Update(folder.Path, new SyncProgress());
+        history.UpdateLayout();
+        Assert.Empty(Descendants(history).OfType<ToggleButton>().Where(b => (string)b.Tag == "OutEntry"));
+        Assert.Contains(Descendants(history).OfType<TextBlock>(), t => t.Text == "Al día");
         var preview = Environment.GetEnvironmentVariable("CMCOORDINATOR_HISTORY_PREVIEW");
         if (!string.IsNullOrEmpty(preview))
         {
@@ -569,7 +609,7 @@ namespace OpenProject.Tests.LiveSync
         history.Update(folder.Path, new SyncProgress { ReceiverRevision = "revision-7", ViewerRevision = "revision-6" });
         PumpDispatcher(700); Layout(history);
         Assert.Empty(Descendants(history).OfType<ToggleButton>().Where(b => (string)b.Tag == "HistoryEntry"));
-        Assert.True(Descendants(history).OfType<ScrollViewer>().First().ActualHeight >= 200);
+        Assert.True(Descendants(history).OfType<ScrollViewer>().First(s => s.Name == "ListScroll").ActualHeight >= 200);
         Assert.Equal(history.ActualWidth, Descendants(history).OfType<Button>().First(b => b.Name == "HeaderButton").ActualWidth, 1);
         if (!string.IsNullOrEmpty(preview))
         {

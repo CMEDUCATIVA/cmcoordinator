@@ -100,6 +100,8 @@ namespace OpenProject.Revit.LiveSync.Presentation
       TokenRevealButton.ToolTip = "Mostrar token";
       System.Windows.Automation.AutomationProperties.SetName(TokenRevealButton, "Mostrar token");
     }
+    // The notice never blocks: closing it leaves the detail in «Cola e historial»; it returns if another element stays out.
+    private void DismissDiffersClick(object sender, RoutedEventArgs args) => _model.DismissDiffers();
     private void CopyLinkClick(object sender, RoutedEventArgs args) => Copy(CdeLink.Text, "Enlace copiado");
     private void CopyTokenClick(object sender, RoutedEventArgs args) => Copy(CdeToken.Password, "Token copiado");
     private void Copy(string value, string confirmation)

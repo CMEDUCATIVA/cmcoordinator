@@ -47,6 +47,40 @@
    </Grid>
   </Button>
   <StackPanel x:Name="ContentArea" Grid.Row="1" HorizontalAlignment="Stretch">
+   <!-- UI-8 logic 8: changes that did not enter the CDE, grouped; each element unfolds with versions, who, when and why. -->
+   <StackPanel x:Name="OutSection" Visibility="Collapsed" Margin="0,8,0,0">
+    <ToggleButton x:Name="OutToggle" Style="{StaticResource EntryToggle}" AutomationProperties.Name="Expandir los elementos que no entraron" ToolTip="Expandir o contraer la lista">
+     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <Path Width="13" Height="13" Stroke="#8A5600" StrokeThickness="1.7" Fill="Transparent" Stretch="Uniform" VerticalAlignment="Center">
+       <Path.Style><Style TargetType="Path"><Setter Property="Data" Value="M8,4 L16,12 L8,20"/>
+        <Style.Triggers><DataTrigger Binding="{Binding IsChecked,ElementName=OutToggle}" Value="True"><Setter Property="Data" Value="M4,8 L12,16 L20,8"/></DataTrigger></Style.Triggers>
+       </Style></Path.Style>
+      </Path>
+      <TextBlock x:Name="OutTitle" Grid.Column="1" FontWeight="SemiBold" Foreground="#8A5600" TextWrapping="Wrap"/>
+     </Grid>
+    </ToggleButton>
+    <ScrollViewer MaxHeight="240" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Visibility="{Binding IsChecked,ElementName=OutToggle,Converter={StaticResource BooleanVisibility}}">
+     <ItemsControl x:Name="OutItems" Margin="18,4,0,0" AutomationProperties.Name="Elementos que no entraron">
+      <ItemsControl.ItemTemplate><DataTemplate>
+       <Border BorderBrush="#D6E0E6" BorderThickness="0,0,0,1" Padding="0,4">
+        <StackPanel>
+         <ToggleButton Tag="OutEntry" Style="{StaticResource EntryToggle}" IsChecked="{Binding IsExpanded,Mode=TwoWay}" AutomationProperties.Name="{Binding Name}" ToolTip="Expandir o contraer detalle">
+          <StackPanel>
+           <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+           <TextBlock Text="{Binding Versions}" Foreground="#506475" TextWrapping="Wrap"/>
+          </StackPanel>
+         </ToggleButton>
+         <ItemsControl ItemsSource="{Binding Lines}" Margin="0,4,0,2" Visibility="{Binding IsExpanded,Converter={StaticResource BooleanVisibility}}">
+          <ItemsControl.ItemTemplate><DataTemplate>
+           <TextBox Text="{Binding Mode=OneWay}" Style="{StaticResource SelectableText}" AutomationProperties.Name="Detalle del elemento"/>
+          </DataTemplate></ItemsControl.ItemTemplate>
+         </ItemsControl>
+        </StackPanel>
+       </Border>
+      </DataTemplate></ItemsControl.ItemTemplate>
+     </ItemsControl>
+    </ScrollViewer>
+   </StackPanel>
    <Grid Margin="0,8,0,4"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
     <Button x:Name="AllButton" Grid.Column="0" Content="Todos" Tag="Todos" Click="FilterClick" Style="{StaticResource FilterAction}"/>
     <Button x:Name="WaitingButton" Grid.Column="1" Content="En espera" Tag="En espera" Click="FilterClick" Style="{StaticResource FilterAction}"/>

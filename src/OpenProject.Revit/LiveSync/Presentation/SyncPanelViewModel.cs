@@ -81,10 +81,17 @@ namespace OpenProject.Revit.LiveSync.Presentation
     // UI-8 logic 8: changes of this Revit that did not enter the CDE (or would not) because someone changed those elements
     // after this person's version. They stay listed until they match the CDE again; Administración may force its version.
     public IReadOnlyList<Queue.DifferingElement> Differs => Status.Differs ?? Array.Empty<Queue.DifferingElement>();
-    public Visibility DiffersVisibility => IsCdeConnected && Differs.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-    public string DiffersTitle => Differs.Count == 1 ? "1 elemento difiere del CDE" : $"{Differs.Count:N0} elementos difieren del CDE";
+    public Visibility DiffersVisibility => IsCdeConnected && Differs.Any(item => !_dismissedDiffers.Contains(item.Id)) ? Visibility.Visible : Visibility.Collapsed;
+    private readonly HashSet<string> _dismissedDiffers = new();
+    /// <summary>Hides the notice for the elements listed now; one that stays out later shows it again.</summary>
+    public void DismissDiffers()
+    {
+      _dismissedDiffers.UnionWith(Differs.Select(item => item.Id));
+      PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(DiffersVisibility)));
+    }
+    public string DiffersTitle => DifferDetail.Title(Differs.Count);
     public string DiffersText => "Tu cambio no entró porque otra persona cambió " + (Differs.Count == 1 ? "ese elemento" : "esos elementos") +
-      " después de tu versión. En el CDE se conserva lo suyo; en tu Revit siguen como los dejaste.";
+      " después de tu versión. En el CDE se conserva lo suyo; en tu Revit siguen como los dejaste. El detalle queda en Cola e historial.";
     public IReadOnlyList<string> DiffersLines
     {
       get
@@ -194,7 +201,7 @@ namespace OpenProject.Revit.LiveSync.Presentation
       : Status.Total == 0 ? TransferTitle switch
       {
         "Procesando en CDE" => "Revisión recibida; aplicación en CDE pendiente",
-        "Sincronizado" => "Revisión confirmada en CDE",
+        _ when TransferTitle.StartsWith("Sincronizado") => "Revisión confirmada en CDE",
         _ => "Sin transferencia pendiente"
       }
       : $"{Status.Done} de {Status.Total} paquetes" + (Status.BytesTotal > 0 ? $" · {FormatBytes(Status.BytesDone)} de {FormatBytes(Status.BytesTotal)}" : "") + " · " + (Status.Stage is "En espera de publicación" or "En cola del CDE" ? "esperando turno de publicación" : Status.Attention ? "revisión no aceptada" : "revisión pendiente");
@@ -221,9 +228,11 @@ namespace OpenProject.Revit.LiveSync.Presentation
         + captureDone + "/" + captureTotal + access + access.UserName + promoted + status.Revoked + status.QueuePosition + (status.RestorePoint?.RevisionId)
         + liveMode + syncChosen + status.Joined + status.NeedsConfirmation + (status.Comparison == null ? "" : $"{status.Comparison.Compared}{status.Comparison.Local}/{status.Comparison.Added}/{status.Comparison.Changed}/{status.Comparison.Removed}")
         + status.Stage + status.Detail + status.JobId + status.Done + "/" + status.Total + status.BytesDone + "/" + status.BytesTotal + status.Paused + status.Attention
-        + status.ReceiverRevision + status.ViewerRevision + status.HasPendingChanges + status.PendingElements + string.Join(";", status.Jobs.Select(j => j.Id + j.State + j.Detail));
+        + status.ReceiverRevision + status.ViewerRevision + status.HasPendingChanges + status.PendingElements + string.Join(";", status.Jobs.Select(j => j.Id + j.State + j.Detail))
+        + string.Join(";", (status.Differs ?? Array.Empty<Queue.DifferingElement>()).Select(d => d.Id + d.Reason + d.By + d.At + d.Mine + "/" + d.Theirs));
       if (_signature != signature)
       {
+        _dismissedDiffers.IntersectWith((status.Differs ?? Array.Empty<Queue.DifferingElement>()).Select(item => item.Id));
         _signature = signature; Model = model; DocumentTitle = documentTitle; RevitState = state;
         Capture = capture; Status = status; CdeSession = cdeSession;
         IsCaptureStopped = captureStopped; HasSyncWorker = hasSyncWorker; IsCdeConnected = cdeConnected;
@@ -252,7 +261,7 @@ namespace OpenProject.Revit.LiveSync.Presentation
           (TransferTitle, TransferBrush) = ("Procesando en CDE", Brushes.Goldenrod);
         // The CDE validates and stores the revision through the authorised link; an open viewer is not required.
         else if (status.Stage == "Al día" && cdeConnected && !status.HasPendingChanges &&
-          capturedElements.HasValue && !string.IsNullOrEmpty(status.ReceiverRevision))
+          capturedElements.HasValue && (!string.IsNullOrEmpty(status.ReceiverRevision) || status.Joined))
           (TransferTitle, TransferBrush) = ("Sincronizado", Brushes.LimeGreen);
         else if (status.Stage == "Al día" && cdeConnected)
           (TransferTitle, TransferBrush) = ("Listo para sincronizar", Brushes.DarkGray);
@@ -260,7 +269,7 @@ namespace OpenProject.Revit.LiveSync.Presentation
           (TransferTitle, TransferBrush) = ("Guardado local", Brushes.DarkGray);
         else (TransferTitle, TransferBrush) = (status.Stage, Brushes.DarkGray);
         TransferDetail = TransferTitle == "Sincronizado"
-            ? status.ReceiverRevision == status.ViewerRevision ? "Revisión guardada en el CDE y mostrada en el visor" : "Revisión guardada en el CDE"
+            ? !string.IsNullOrEmpty(status.ReceiverRevision) && status.ReceiverRevision == status.ViewerRevision ? "Revisión guardada en el CDE y mostrada en el visor" : "Revisión guardada en el CDE"
           : TransferTitle == "Procesando en CDE" ? "Revisión recibida; el CDE está aplicando los cambios"
           : TransferTitle == "Preparando cambios" ? "Capturando cambios del modelo antes del envío"
           : TransferTitle == "Cambios pendientes" ? "Cambios guardados en la cola; envío pendiente"
@@ -270,6 +279,13 @@ namespace OpenProject.Revit.LiveSync.Presentation
           : TransferTitle == "Solo lectura" ? "Los cambios se guardan en este equipo; no se envían al CDE"
           : TransferTitle == "Conexión revocada" ? "Envíos detenidos · cambios guardados en este equipo"
           : TransferTitle == "Detenido" && !hasSyncWorker ? "Abre una vista 3D para comenzar" : status.Detail;
+        // Being up to date does not hide what stayed out.
+        var outside = status.Differs?.Count ?? 0;
+        if (TransferTitle == "Sincronizado" && outside > 0)
+        {
+          TransferTitle = $"Sincronizado · {outside:N0} fuera"; TransferBrush = Brushes.Goldenrod;
+          TransferDetail += " · " + DifferDetail.Title(outside) + "; el detalle está en Cola e historial";
+        }
         SyncIndicatorBrush = TransferBrush;
         foreach (var name in new[] { nameof(Model), nameof(DocumentTitle), nameof(RevitState), nameof(SyncIndicatorBrush), nameof(SyncIndicatorLabel), nameof(Capture), nameof(Status), nameof(PauseLabel), nameof(ShowPlayIcon), nameof(CanSynchronize), nameof(SyncLabel), nameof(CanPause), nameof(CanStop), nameof(CanRestartCapture), nameof(TransferTitle), nameof(TransferDetail), nameof(TransferBrush), nameof(TransferProgressVisibility), nameof(TransferIndeterminate), nameof(TransferPercent), nameof(TransferFraction), nameof(TransferPercentLabel), nameof(CapturedCount), nameof(StoredRevision), nameof(DisplayedRevision), nameof(PendingLabel), nameof(BlockLabel), nameof(CdeSession),
           nameof(Access), nameof(SyncHint), nameof(GroupLabel), nameof(GroupVisibility), nameof(GroupHint), nameof(CanReplace), nameof(ReplaceVisibility), nameof(NoticeKind), nameof(NoticeVisibility), nameof(NoticeTitle), nameof(NoticeText),
