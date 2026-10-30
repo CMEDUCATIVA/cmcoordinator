@@ -57,6 +57,38 @@ namespace OpenProject.Tests.LiveSync
     }
 
     [Fact]
+    public void AMoveDoesNotCountAsAChangeOfParameters()
+    {
+      string Wall(string volume, double raw, string comment, double x) =>
+        "{\"id\":\"W\",\"name\":\"Muro\",\"properties\":{\"Volumen\":\"" + volume + "\",\"Comentarios\":\"" + comment + "\"},\"bim\":{\"ifcSets\":[{\"kind\":\"qto\",\"name\":\"" + volume + "\"}],\"parameters\":[" +
+        "{\"name\":\"Volumen\",\"groupId\":\"autodesk.parameter.group:dimensions-1.0.0\",\"display\":\"" + volume + "\",\"value\":" + raw.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}," +
+        "{\"name\":\"Marca\",\"groupId\":\"x\",\"display\":\"A\",\"value\":" + raw.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}," +
+        "{\"name\":\"Comentarios\",\"groupId\":\"y\",\"display\":\"" + comment + "\"}]},\"meshes\":[{\"positions\":[" + x.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",0,0]}]}";
+      var (g, p) = SqliteOutbox.Aspects(Wall("23.33 m3", 1.1, "", 0));
+      var moved = SqliteOutbox.Aspects(Wall("23.40 m3", 1.2, "", 5));
+      Assert.NotEqual(g, moved.Geometry);
+      Assert.Equal(p, moved.Parameters);
+      Assert.NotEqual(p, SqliteOutbox.Aspects(Wall("23.33 m3", 1.1, "Carla", 0)).Parameters);
+    }
+
+    [Fact]
+    public void AnElementMadeOfTwoPeoplesChangesIsNotSentAgainAsMissing()
+    {
+      using var folder = new OutboxTests.TestFolder();
+      using var outbox = new SqliteOutbox(folder.Path);
+      var (w1, w2) = (Element("W1"), Element("W2"));
+      outbox.Save(Snapshot(w1, w2));
+      Assert.True(outbox.RecordBaseline());
+      // W1 has a version in the CDE but no huella: the CDE composed it from two people's changes.
+      var remote = Remote(new() { ["W2"] = (Print(w2), 1, 1, 7) });
+      ((Dictionary<string, long?[]>)remote.Versions)["W1"] = new long?[] { 5, 6, 7 };
+      outbox.ResolveKnown(remote);
+      outbox.Save(Snapshot(w1, Element("W2", x: 3)));
+      var part = ElementsPart(outbox, Prepare(outbox, remote));
+      Assert.Equal(new[] { "W2" }, part["updated"].Select(e => (string)e["id"]).ToArray());
+    }
+
+    [Fact]
     public void AnOldCopyStartsFromTheCdeVersionOnceItMatches()
     {
       using var folder = new OutboxTests.TestFolder();

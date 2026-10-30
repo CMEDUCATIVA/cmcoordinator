@@ -92,7 +92,34 @@ namespace OpenProject.Revit.LiveSync.Queue
       var element = JObject.Parse(json);
       var meshes = element["meshes"]?.ToString(Formatting.None) ?? "";
       element.Remove("meshes");
+      KeepOnlyWhatAPersonEdits(element);
       return (SyncEncoding.Hash(meshes), SyncEncoding.Hash(element.ToString(Formatting.None)));
+    }
+
+    // Moving an element changes its volume, length, area and weight and the decimals of others: they follow the geometry,
+    // so they do not count as a change of parameters. Otherwise a move would stop someone else's comment on the same element.
+    private static void KeepOnlyWhatAPersonEdits(JObject element)
+    {
+      var derived = new HashSet<string>(StringComparer.Ordinal) { "Peso", "Peso exacto", "Área de pintura" };
+      if (element["bim"] is JObject bim)
+      {
+        bim.Remove("ifcSets");
+        if (bim["parameters"] is JArray parameters)
+        {
+          foreach (var parameter in parameters.OfType<JObject>().ToList())
+          {
+            if (parameter.Value<string>("groupId")?.Contains(":dimensions-") == true || derived.Contains(parameter.Value<string>("name") ?? ""))
+            { derived.Add(parameter.Value<string>("name") ?? ""); parameter.Remove(); continue; }
+            parameter.Remove("value"); parameter.Remove("siValue");
+          }
+        }
+      }
+      if (element["properties"] is JObject properties)
+        foreach (var property in properties.Properties().ToList())
+        {
+          if (derived.Contains(property.Name)) property.Remove();
+          else if (property.Value.Type == JTokenType.String) property.Value = PrintValue(property.Value.ToString());
+        }
     }
 
     // The aspects of the starting point, to tell later which of them this person changed.
@@ -219,7 +246,8 @@ namespace OpenProject.Revit.LiveSync.Queue
         using (var cmd = Command("SELECT g,p FROM baseline_aspects WHERE id=$id", ("$id", id)))
         using (var reader = cmd.ExecuteReader()) if (reader.Read()) reference = (reader.GetString(0), reader.GetString(1));
       var changed = reference == null ? "gp" : (g != reference.Value.G ? "g" : "") + (p != reference.Value.P ? "p" : "");
-      if (changed.Length == 0) changed = "gp";
+      // Nothing a person edits changed: only what follows the geometry did. Forcing sends the element as it is.
+      if (changed.Length == 0) changed = plan.CanForce && plan.Forced.Contains(id) ? "gp" : "g";
       long bg = -1, bp = -1;
       using (var cmd = Command("SELECT vg,vp FROM known WHERE id=$id", ("$id", id)))
       using (var reader = cmd.ExecuteReader()) if (reader.Read()) { bg = reader.GetInt64(0); bp = reader.GetInt64(1); }

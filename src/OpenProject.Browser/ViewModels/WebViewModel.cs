@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Linq;
 using CefSharp.Wpf;
 using OpenProject.Browser.Services;
@@ -26,6 +27,19 @@ namespace OpenProject.Browser.ViewModels
       var sessionArgs = Environment.GetCommandLineArgs();
       var nonce = sessionArgs.SkipWhile(arg => arg != "session").Skip(1).FirstOrDefault();
       if (!string.IsNullOrWhiteSpace(nonce)) _sessionMonitor = new CdeSessionMonitor(Browser, nonce);
+      CloseWhenRevitIsGone(sessionArgs);
+    }
+
+    // After Revit dies this browser would hold its cache: the next Revit's browser would hand its arguments to it, which
+    // opens them as addresses, and the new Revit would stay without a CDE session.
+    private static void CloseWhenRevitIsGone(string[] arguments)
+    {
+      if (!int.TryParse(arguments.SkipWhile(arg => arg != "revit").Skip(1).FirstOrDefault(), out var revitId)) return;
+      Process revit;
+      try { revit = Process.GetProcessById(revitId); }
+      catch (ArgumentException) { Environment.Exit(0); return; }
+      revit.EnableRaisingEvents = true;
+      revit.Exited += (_, _) => Environment.Exit(0);
     }
 
     private void InitializeIpcConnection()

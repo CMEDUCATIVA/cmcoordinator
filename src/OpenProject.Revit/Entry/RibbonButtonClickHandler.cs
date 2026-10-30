@@ -119,7 +119,7 @@ namespace OpenProject.Revit.Entry
           string.Join(", ", GetOpenProjectBrowserExecutableCandidates()));
 
       var opBrowserServerPort = FreePortHelper.GetFreePort();
-      var processArguments = $"ipc {opBrowserServerPort} {revitServerPort} session {nonce}";
+      var processArguments = $"ipc {opBrowserServerPort} {revitServerPort} session {nonce} revit {Process.GetCurrentProcess().Id}";
       _opBrowserProcess = Process.Start(openProjectBrowserExecutablePath, processArguments);
       IpcHandler.StartLocalClient(opBrowserServerPort);
       PinsPaneManager.PushCurrentPinsToDesktopApp();

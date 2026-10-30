@@ -186,6 +186,10 @@ namespace OpenProject.Revit.LiveSync.Queue
         Execute("CREATE TEMP TABLE IF NOT EXISTS remote (id TEXT PRIMARY KEY,hash TEXT NOT NULL); DELETE FROM remote;");
         foreach (var pair in remote)
           Execute("INSERT OR REPLACE INTO remote VALUES($id,$hash)", ("$id", pair.Key), ("$hash", pair.Value ?? ""));
+        // An element made of two people's changes has a version but no huella: the CDE has it, so it is not sent as missing.
+        if (versions?.Remote != null)
+          foreach (var id in versions.Remote.Keys)
+            Execute("INSERT OR IGNORE INTO remote VALUES($id,'')", ("$id", id));
         Execute("CREATE TEMP TABLE IF NOT EXISTS gone (id TEXT PRIMARY KEY); DELETE FROM gone;");
         foreach (var id in gone ?? Array.Empty<string>()) Execute("INSERT OR IGNORE INTO gone VALUES($id)", ("$id", id));
       }
