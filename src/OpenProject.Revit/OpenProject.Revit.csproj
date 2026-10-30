@@ -22,7 +22,7 @@
     <!-- Fallback to 2022 if no specific version is detected -->
     <RevitVersion Condition="'$(RevitVersion)' == ''">2022</RevitVersion>
     <LangVersion>latest</LangVersion>
-    <Version>2026.10.1</Version>
+    <Version>2026.10.2</Version>
   </PropertyGroup>
 
   <PropertyGroup>

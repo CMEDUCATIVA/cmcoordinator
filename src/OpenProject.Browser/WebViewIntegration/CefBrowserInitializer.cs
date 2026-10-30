@@ -1,4 +1,6 @@
+using System;
 using System.IO;
+using System.Text.RegularExpressions;
 using CefSharp;
 using CefSharp.Wpf;
 using OpenProject.Shared;
@@ -27,13 +29,24 @@ namespace OpenProject.Browser.WebViewIntegration
         $" /OpenProjectRevitAddIn {VersionsService.Version}";
       settings.UserAgent = userAgent;
 
-      // To enable caching, e.g. of assets and cookies, we're using a temp data folder
-      settings.CachePath = Path.Combine(ConfigurationConstant.OpenProjectApplicationData, "BrowserCache");
+      // To enable caching, e.g. of assets and cookies, we're using a temp data folder.
+      // CEF lets only one process use a cache folder, so each Revit version keeps its own and both can run at once.
+      settings.CachePath = Path.Combine(ConfigurationConstant.OpenProjectApplicationData, CacheFolderName(AppDomain.CurrentDomain.BaseDirectory));
       // Additionally, we're persisting session cookies to ensure logins are persistent throughout
       // multiple sessions.
       settings.PersistSessionCookies = true;
 
       Cef.Initialize(settings);
+    }
+
+    /// <summary>
+    /// The installer places the browser in <c>…\Addins\&lt;year&gt;\Cmcoordinator\OpenProject.Browser</c>;
+    /// that year names the cache. Any other location (development builds) keeps the shared folder.
+    /// </summary>
+    public static string CacheFolderName(string browserDirectory)
+    {
+      var year = Regex.Match(browserDirectory ?? "", @"[\\/]Addins[\\/](20\d\d)[\\/]", RegexOptions.IgnoreCase);
+      return year.Success ? "BrowserCache-" + year.Groups[1].Value : "BrowserCache";
     }
   }
 }
