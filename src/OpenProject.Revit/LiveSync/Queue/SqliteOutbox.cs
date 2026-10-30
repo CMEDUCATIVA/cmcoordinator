@@ -39,6 +39,7 @@ namespace OpenProject.Revit.LiveSync.Queue
           CREATE TABLE IF NOT EXISTS drawing_confirmed (id TEXT PRIMARY KEY,json TEXT NOT NULL,hash TEXT NOT NULL);
           CREATE TABLE IF NOT EXISTS baseline (id TEXT PRIMARY KEY,hash TEXT NOT NULL);");
         EnsureVersions();
+        MigrateElementHashes();
       }
       catch { _db?.Dispose(); _lease.Dispose(); throw; }
     }
@@ -68,7 +69,7 @@ namespace OpenProject.Revit.LiveSync.Queue
         var json = SyncEncoding.Json(pair.Value);
         changed |= Execute(@"INSERT INTO desired VALUES($id,$json,$hash) ON CONFLICT(id) DO UPDATE
           SET json=excluded.json,hash=excluded.hash WHERE desired.hash<>excluded.hash",
-          ("$id", pair.Key), ("$json", json), ("$hash", SyncEncoding.Hash(json))) > 0;
+          ("$id", pair.Key), ("$json", json), ("$hash", ElementHash(json))) > 0;
       }
       foreach (var id in existing) { Execute("DELETE FROM desired WHERE id=$id", ("$id", id)); changed = true; }
       Set("source", snapshot.SourceId); Set("title", snapshot.Title); Set("view", snapshot.View);
@@ -126,7 +127,7 @@ namespace OpenProject.Revit.LiveSync.Queue
       }
     }
 
-    // Huella sent with each element: the first 16 hex digits of the hash of its captured JSON.
+    // Huella sent with each element: the first 16 hex digits of its hash, its semantic huella (see ElementHash).
     public const int FingerprintLength = 16;
     /// <summary>What a complete capture from this queue would do to a CDE revision with these huellas.</summary>
     public (int Local, int Added, int Changed, int Removed) CompareWithRemote(IReadOnlyDictionary<string, string> remote)
@@ -141,7 +142,7 @@ namespace OpenProject.Revit.LiveSync.Queue
           var id = reader.GetString(0);
           if (!remote.TryGetValue(id, out var print)) { added++; continue; }
           unseen.Remove(id);
-          if (print != reader.GetString(1).Substring(0, FingerprintLength)) changed++;
+          if (!SamePrint(print, reader.GetString(1))) changed++;
         }
       return (local, added, changed, unseen.Count);
     }
@@ -212,7 +213,7 @@ namespace OpenProject.Revit.LiveSync.Queue
         Title = Get("title"), View = Get("view"), Sequence = sequence,
         BaseRevision = baseRevision, Reset = reset, Merge = merge && !reset ? true : null };
       using var digest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-      const string differsFromRemote = "FROM target t LEFT JOIN remote r ON t.id=r.id WHERE r.id IS NULL OR r.hash<>substr(t.hash,1,16)";
+      const string differsFromRemote = "FROM target t LEFT JOIN remote r ON t.id=r.id WHERE r.id IS NULL OR (r.hash<>substr(t.hash,1,16) AND r.hash<>substr(t.hash,17,16))";
       const string differsFromConfirmed = "FROM target t LEFT JOIN confirmed c ON t.id=c.id WHERE c.id IS NULL OR c.hash<>t.hash";
       const string ownChangesOrMissing = "FROM target t LEFT JOIN confirmed c ON t.id=c.id LEFT JOIN remote r ON t.id=r.id WHERE c.id IS NULL OR c.hash<>t.hash OR r.id IS NULL";
       bool history;
@@ -225,7 +226,7 @@ namespace OpenProject.Revit.LiveSync.Queue
       const string sinceBaseline = "FROM target t LEFT JOIN confirmed c ON t.id=c.id LEFT JOIN baseline b ON t.id=b.id LEFT JOIN remote r ON t.id=r.id " +
         "LEFT JOIN gone g ON t.id=g.id " +
         "WHERE (COALESCE(c.hash,b.hash) IS NULL OR COALESCE(c.hash,b.hash)<>t.hash OR (r.id IS NULL AND g.id IS NULL)) " +
-        "AND (r.id IS NULL OR r.hash<>substr(t.hash,1,16))";
+        "AND (r.id IS NULL OR (r.hash<>substr(t.hash,1,16) AND r.hash<>substr(t.hash,17,16)))";
       var baseline = compare && HasBaseline;
       var updatedFrom = reset ? "FROM target t" : !compare ? differsFromConfirmed : baseline ? sinceBaseline : history ? ownChangesOrMissing : differsFromRemote;
       var updatedSql = "SELECT t.json,t.id,t.hash " + updatedFrom + " ORDER BY t.id";

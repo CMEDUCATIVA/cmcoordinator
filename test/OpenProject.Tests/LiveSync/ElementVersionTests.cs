@@ -33,6 +33,43 @@ namespace OpenProject.Tests.LiveSync
       Enumerable.Range(0, job.ChunkCount).Select(i => JObject.Parse(Encoding.UTF8.GetString(outbox.Chunk(i)))).ToList();
     private static JObject ElementsPart(SqliteOutbox outbox, SyncJob job) => Parts(outbox, job).FirstOrDefault(p => (string)p["kind"] == "elements");
 
+    // A10: Revit 2027 triangulates the same element differently, renames a parameter, adds another and adds decimals.
+    private static string Captured(string typeName, string extra, double[] positions, int[] indices, string decimals) =>
+      "{\"id\":\"W\",\"name\":\"Muro\",\"category\":\"Muros\",\"properties\":{\"Largo\":\"" + decimals + " m\"," + typeName + ":\"3.7021 W\"" + extra +
+      "},\"meshes\":[{\"positions\":" + Newtonsoft.Json.JsonConvert.SerializeObject(positions) + ",\"indices\":" + Newtonsoft.Json.JsonConvert.SerializeObject(indices) + ",\"color\":\"#fff\",\"opacity\":1.0}]}";
+
+    [Fact]
+    public void TheSameElementInAnotherRevitYearHasTheSameHuella()
+    {
+      var y2026 = Captured("\"Tipo · U\"", "", new double[] { 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0 }, new[] { 0, 1, 2, 0, 2, 3 }, "1763.5639755188622");
+      var y2027 = Captured("\"Tipo · Transmitancia\"", ",\"Alojado\":\"No\"", new double[] { 1, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0 }, new[] { 2, 3, 0, 2, 0, 1 }, "1763.5639755188654");
+      Assert.Equal(SqliteOutbox.SemanticPrint(y2026), SqliteOutbox.SemanticPrint(y2027));
+      Assert.NotEqual(SqliteOutbox.ElementHash(y2026), SqliteOutbox.ElementHash(y2027));
+    }
+
+    [Fact]
+    public void TheHuellaSeesAMoveACommentAndAColour()
+    {
+      var original = Captured("\"U\"", "", new double[] { 0, 0, 0, 1, 0, 0, 0, 1, 0 }, new[] { 0, 1, 2 }, "1");
+      Assert.NotEqual(SqliteOutbox.SemanticPrint(original), SqliteOutbox.SemanticPrint(Captured("\"U\"", "", new double[] { 0.002, 0, 0, 1.002, 0, 0, 0.002, 1, 0 }, new[] { 0, 1, 2 }, "1")));
+      Assert.NotEqual(SqliteOutbox.SemanticPrint(original), SqliteOutbox.SemanticPrint(Captured("\"U\"", ",\"Comentarios\":\"Carla\"", new double[] { 0, 0, 0, 1, 0, 0, 0, 1, 0 }, new[] { 0, 1, 2 }, "1")));
+      Assert.NotEqual(SqliteOutbox.SemanticPrint(original), SqliteOutbox.SemanticPrint(original.Replace("#fff", "#000")));
+    }
+
+    [Fact]
+    public void AnOldCopyStartsFromTheCdeVersionOnceItMatches()
+    {
+      using var folder = new OutboxTests.TestFolder();
+      using var outbox = new SqliteOutbox(folder.Path);
+      var w1 = Element("W1");
+      outbox.Save(Snapshot(w1));
+      outbox.RecordBaseline();
+      Assert.Equal(1, outbox.ResolveKnown(Remote(new() { ["W1"] = (Print(Element("W1", x: 9)), 5, 5, 7) })));
+      // Still different: nothing new is known.
+      Assert.Equal(0, outbox.ResolveKnown(Remote(new() { ["W1"] = (Print(Element("W1", x: 8)), 6, 6, 7) })));
+      Assert.Equal(1, outbox.ResolveKnown(Remote(new() { ["W1"] = (Print(w1), 7, 7, 7) })));
+    }
+
     [Fact]
     public void EachElementCarriesTheAspectItChangedAndTheVersionItStartedFrom()
     {

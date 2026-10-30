@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using OpenProject.Revit.LiveSync.Transport;
@@ -17,6 +19,72 @@ namespace OpenProject.Revit.LiveSync.Queue
       CREATE TABLE IF NOT EXISTS baseline_aspects (id TEXT PRIMARY KEY,g TEXT NOT NULL,p TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS differs (id TEXT PRIMARY KEY,name TEXT,reason TEXT,who TEXT,at TEXT,partial INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE IF NOT EXISTS forced (id TEXT PRIMARY KEY);");
+
+    // Parameters a newer Revit adds to the same element: they say nothing about whether it changed.
+    private static readonly HashSet<string> VersionOnlyProperties = new(StringComparer.Ordinal) { "Alojado" };
+
+    /// <summary>
+    /// The huella of an element, the same in every Revit year: Revit 2026 and 2027 triangulate the same wall differently,
+    /// rename parameters and add decimals, so the bytes of the capture never match. It reads the box and the centre of the
+    /// vertices (1 mm and 1 cm) and the values of the properties, without their names. Its rounding hides what is smaller.
+    /// </summary>
+    public static string SemanticPrint(string json)
+    {
+      var element = JObject.Parse(json);
+      var points = new HashSet<(double, double, double)>();
+      var looks = new SortedSet<string>(StringComparer.Ordinal);
+      foreach (var mesh in element["meshes"] ?? new JArray())
+      {
+        looks.Add(mesh["color"] + "/" + mesh["opacity"]?.Value<double>().ToString("R", CultureInfo.InvariantCulture));
+        var positions = mesh["positions"]?.Values<double>().ToList() ?? new List<double>();
+        for (var i = 0; i + 2 < positions.Count; i += 3) points.Add((Round(positions[i], 3), Round(positions[i + 1], 3), Round(positions[i + 2], 3)));
+      }
+      var shape = points.Count == 0 ? "" : string.Join(",", new[]
+      {
+        points.Min(p => p.Item1), points.Min(p => p.Item2), points.Min(p => p.Item3), points.Max(p => p.Item1), points.Max(p => p.Item2), points.Max(p => p.Item3),
+        Round(points.Average(p => p.Item1), 2), Round(points.Average(p => p.Item2), 2), Round(points.Average(p => p.Item3), 2)
+      }.Select(value => value.ToString("R", CultureInfo.InvariantCulture)));
+      var values = (element["properties"] as JObject)?.Properties().Where(property => !VersionOnlyProperties.Contains(property.Name))
+        .Select(property => PrintValue(property.Value.ToString())).OrderBy(value => value, StringComparer.Ordinal) ?? Enumerable.Empty<string>();
+      var identity = element.Value<string>("name") + "|" + element.Value<string>("category") + "|" + string.Join(",", looks);
+      return SyncEncoding.Hash(identity + "|" + shape + "|" + string.Join("|", values)).Substring(0, FingerprintLength);
+    }
+    // Adding 0.0 turns -0 into 0, so an element at the origin prints the same on both sides.
+    private static double Round(double value, int decimals) => Math.Round(value, decimals) + 0.0;
+    private static readonly Regex Numeric = new(@"^(-?\d+(?:\.\d+)?)(.*)$", RegexOptions.Compiled | RegexOptions.Singleline);
+    private static string PrintValue(string value)
+    {
+      var match = Numeric.Match(value);
+      return match.Success && double.TryParse(match.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number)
+        ? number.ToString("G5", CultureInfo.InvariantCulture) + match.Groups[2].Value : value;
+    }
+
+    /// <summary>The hash kept for an element: its semantic huella, then the start of the exact hash, so any change still shows.</summary>
+    public static string ElementHash(string json) => SemanticPrint(json) + SyncEncoding.Hash(json).Substring(0, 64 - FingerprintLength);
+    // Whether a CDE huella is this hash. Models published before the semantic huella hold the start of the exact hash.
+    private static bool SamePrint(string remote, string hash) =>
+      remote == hash.Substring(0, FingerprintLength) || remote == hash.Substring(FingerprintLength, FingerprintLength);
+
+    // Queues written before the semantic huella: same elements, same bytes, new hash. Without this all would look changed.
+    private void MigrateElementHashes()
+    {
+      if (Get("printFormat") == "2") return;
+      using var transaction = _db.BeginTransaction();
+      foreach (var table in new[] { "desired", "confirmed", "target" })
+      {
+        var rows = new List<(string Id, string Json, string Old)>();
+        using (var cmd = Command($"SELECT id,json,hash FROM {table}"))
+        using (var reader = cmd.ExecuteReader()) while (reader.Read()) rows.Add((reader.GetString(0), reader.GetString(1), reader.GetString(2)));
+        foreach (var (id, json, old) in rows)
+        {
+          var hash = ElementHash(json);
+          Execute($"UPDATE {table} SET hash=$hash WHERE id=$id", ("$id", id), ("$hash", hash));
+          if (table == "desired") Execute("UPDATE baseline SET hash=$hash WHERE id=$id AND hash=$old", ("$id", id), ("$hash", hash), ("$old", old));
+        }
+      }
+      Set("printFormat", "2");
+      transaction.Commit();
+    }
 
     /// <summary>Hashes of the geometry and of the parameters of an element's captured JSON.</summary>
     public static (string Geometry, string Parameters) Aspects(string json)
@@ -51,23 +119,25 @@ namespace OpenProject.Revit.LiveSync.Queue
       var remote = prints.Fingerprints ?? new Dictionary<string, string>();
       var resolved = 0;
       using var transaction = _db.BeginTransaction();
-      var pending = new List<(string Id, string Reference)>();
-      using (var cmd = Command(@"SELECT d.id,COALESCE(c.hash,b.hash,d.hash) FROM desired d LEFT JOIN confirmed c ON d.id=c.id
-        LEFT JOIN baseline b ON d.id=b.id LEFT JOIN known k ON d.id=k.id WHERE k.id IS NULL"))
-      using (var reader = cmd.ExecuteReader()) while (reader.Read()) pending.Add((reader.GetString(0), reader.GetString(1)));
-      foreach (var (id, reference) in pending)
+      var pending = new List<(string Id, string Reference, bool Old)>();
+      // An old copy (-1) is looked at again: it starts from the CDE's version as soon as it is the same as the CDE's.
+      using (var cmd = Command(@"SELECT d.id,COALESCE(c.hash,b.hash,d.hash),k.id IS NOT NULL FROM desired d LEFT JOIN confirmed c ON d.id=c.id
+        LEFT JOIN baseline b ON d.id=b.id LEFT JOIN known k ON d.id=k.id WHERE k.id IS NULL OR k.vg=-1"))
+      using (var reader = cmd.ExecuteReader()) while (reader.Read()) pending.Add((reader.GetString(0), reader.GetString(1), reader.GetBoolean(2)));
+      foreach (var (id, reference, old) in pending)
       {
         // An element the CDE has from before it versioned elements is at version 0.
         var hasVersion = prints.Versions.TryGetValue(id, out var version) && version?.Length >= 2;
         if (!hasVersion && !remote.ContainsKey(id)) continue;
-        var same = remote.TryGetValue(id, out var print) && print == reference.Substring(0, FingerprintLength);
+        var same = remote.TryGetValue(id, out var print) && SamePrint(print, reference);
+        if (old && !same) continue;
         SetKnown(id, same ? (hasVersion ? version[0] ?? 0 : 0) : -1, same ? (hasVersion ? version[1] ?? 0 : 0) : -1); resolved++;
       }
       var matching = new List<string>();
       using (var cmd = Command("SELECT d.id,d.hash FROM differs x JOIN desired d ON x.id=d.id"))
       using (var reader = cmd.ExecuteReader())
         while (reader.Read())
-          if (remote.TryGetValue(reader.GetString(0), out var print) && print == reader.GetString(1).Substring(0, FingerprintLength))
+          if (remote.TryGetValue(reader.GetString(0), out var print) && SamePrint(print, reader.GetString(1)))
             matching.Add(reader.GetString(0));
       foreach (var id in matching)
       {
