@@ -21,8 +21,17 @@ namespace OpenProject.Revit.LiveSync.Capture
       if (geometry == null) return new();
       var result = LiveMetadata.Read(element, element.UniqueId);
       Visit(geometry, Transform.Identity, document, view, result, 0);
+      if (result.Meshes.Count == 0 && DrawnAsLinesBelowFine(element))
+      {
+        using var fine = element.get_Geometry(new Options { DetailLevel = ViewDetailLevel.Fine, ComputeReferences = false, IncludeNonVisibleObjects = false });
+        if (fine != null) Visit(fine, Transform.Identity, document, view, result, 0);
+      }
       return result.Meshes.Count == 0 && !IsAssembly(element) ? new() : new() { [result.Id] = result };
     }
+    // Below Fine, Revit draws pipes, conduits and their fittings as lines: without this they would be missing from the model
+    // with no notice. Only these: without a view, a room or a group would also return solids it must not send.
+    private static bool DrawnAsLinesBelowFine(Element element) =>
+      element is MEPCurve or Autodesk.Revit.DB.Structure.Rebar || element is FamilyInstance { MEPModel: not null };
     // As in the IFC exporter, a stair is an IfcStair aggregating its flights, landings and stringers,
     // each sent as its own element with its own geometry. Null keeps the stair whole (no readable parts).
     private Dictionary<string, LiveElement> ReadStairs(Document document, View3D view, Autodesk.Revit.DB.Architecture.Stairs stairs)

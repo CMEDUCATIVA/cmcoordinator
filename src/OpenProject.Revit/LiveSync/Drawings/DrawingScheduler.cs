@@ -15,10 +15,11 @@ namespace OpenProject.Revit.LiveSync.Drawings
   // One view is drawn per idle cycle, after the same short calm the 3D capture waits for.
   internal sealed class DrawingScheduler
   {
+    // Revit's exporter refuses drafting views (ArgumentException), so they are not offered.
     private static readonly HashSet<ViewType> Drawable = new()
     {
       ViewType.FloorPlan, ViewType.CeilingPlan, ViewType.AreaPlan, ViewType.EngineeringPlan,
-      ViewType.Section, ViewType.Elevation, ViewType.Detail, ViewType.DraftingView, ViewType.Legend
+      ViewType.Section, ViewType.Elevation, ViewType.Detail, ViewType.Legend
     };
     private readonly Document _document;
     private readonly string _queueDirectory;
