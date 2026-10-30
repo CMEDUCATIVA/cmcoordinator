@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Autodesk.Revit.UI;
 using Autodesk.Revit.UI.Events;
 using Newtonsoft.Json.Linq;
@@ -16,14 +16,22 @@ namespace OpenProject.Revit.Entry
     private static bool _accountChanged;
     private static bool _signedOut;
     private static DateTime _nextShowAttempt;
+    // Opening the browser subscribes to Idling, which Revit forbids while Idling runs: startup opens through an ExternalEvent.
+    private static ExternalEvent _startupOpen;
     public static bool CanUseLocalSync => Access.HasLocalAccess;
     public static long SignedInUserId => Access.LastSignedInUserId;
     public static bool MatchesOrigin(Uri address)
       => Access.HasLocalAccess && CdeSessionPolicy.IsCde(address?.AbsoluteUri, Access.LastSignedInOrigin);
+    // Tests stand in for several signed-in Revit sessions in one process; Revit always checks its own CDE login.
+    internal static Func<Uri, long, bool> TestAccounts;
     public static bool MatchesDestination(Uri address, long userId)
-      => MatchesOrigin(address) && Access.LastSignedInUserId == userId;
+      => TestAccounts?.Invoke(address, userId) ?? (MatchesOrigin(address) && Access.LastSignedInUserId == userId);
     public static bool HasFreshCdeSession => RibbonButtonClickHandler.IsBrowserRunning && Access.HasFreshCdeSession(DateTime.UtcNow);
-    public static void Initialize(UIControlledApplication application) => application.Idling += OnIdle;
+    public static void Initialize(UIControlledApplication application)
+    {
+      _startupOpen = ExternalEvent.Create(new StartupOpenHandler());
+      application.Idling += OnIdle;
+    }
     public static void Shutdown(UIControlledApplication application)
     { application.Idling -= OnIdle; Access = new CdeAccessState(); }
     public static void BeginBrowser(string nonce)
@@ -62,8 +70,7 @@ namespace OpenProject.Revit.Entry
         if (_startup)
         {
           _startup = false;
-          Open(app);
-          if (!CanUseLocalSync) Hide(app);
+          _startupOpen.Raise();
         }
         if (_accountChanged) { LocalLiveSync.HoldForAccountChange(); _accountChanged = false; }
         if (_signedOut) { LocalLiveSync.HoldForSignIn(); _signedOut = false; }
@@ -73,6 +80,20 @@ namespace OpenProject.Revit.Entry
       }
       catch (Exception error)
       { Log.Error(error, "No se pudo abrir Cmcoordinator; puede reintentarse desde su botón"); }
+    }
+    private sealed class StartupOpenHandler : IExternalEventHandler
+    {
+      public void Execute(UIApplication app)
+      {
+        try
+        {
+          Open(app);
+          if (!CanUseLocalSync) Hide(app);
+        }
+        catch (Exception error)
+        { Log.Error(error, "No se pudo abrir Cmcoordinator; puede reintentarse desde su botón"); }
+      }
+      public string GetName() => "Abrir Cmcoordinator al iniciar";
     }
     private static void Show(UIApplication app)
     {

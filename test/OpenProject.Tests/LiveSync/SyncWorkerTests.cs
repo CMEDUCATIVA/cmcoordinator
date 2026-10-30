@@ -53,6 +53,69 @@ namespace OpenProject.Tests.LiveSync
       finally { worker.Dispose(); await worker.Completion; }
     }
     [Fact]
+    public async Task LecturaKeepsTheQueueWithoutSendingAndPublishesOncePromoted()
+    {
+      using var folder = new OutboxTests.TestFolder();
+      var receiver = new FakeReceiver { Level = "reader", Actions = Array.Empty<string>() }; var log = new RecordingLog();
+      var worker = new SyncWorker(folder.Path, receiver, log);
+      try
+      {
+        worker.Submit(Snapshot("model")); worker.RequestPublish();
+        await Until(() => worker.Progress.Stage == "Solo lectura");
+        Assert.Equal(0, receiver.Begins);
+        Assert.True(worker.Access.ReadOnly);
+        Assert.True(worker.Progress.Access.ReadOnly);
+        Assert.False(worker.Progress.Attention);
+        Assert.True(worker.Progress.HasPendingChanges);
+        Assert.Contains("READ_ONLY", log.Codes);
+        // Live mode must not keep asking to publish while the group stays Lectura.
+        worker.Live = true;
+        await Task.Delay(600);
+        Assert.Equal(0, receiver.Begins);
+        receiver.Actions = new[] { "create" }; receiver.Level = "editor";
+        worker.RequestPublish();
+        await Until(() => receiver.Committed.Count == 1);
+        Assert.Equal("editor", worker.Access.Level);
+        Assert.True(receiver.Scene.ContainsKey("model"));
+      }
+      finally { worker.Dispose(); await worker.Completion; }
+    }
+    [Fact]
+    public async Task MovedToLecturaWhileSendingIsShownAsReadOnlyNotAsAFailure()
+    {
+      using var folder = new OutboxTests.TestFolder();
+      var receiver = new FakeReceiver { Level = "editor", Actions = new[] { "create" }, ReadOnlyOnBegin = true }; var log = new RecordingLog();
+      var worker = new SyncWorker(folder.Path, receiver, log);
+      try
+      {
+        worker.Submit(Snapshot("model")); worker.RequestPublish();
+        await Until(() => worker.Progress.Stage == "Solo lectura");
+        Assert.False(worker.Progress.Attention);
+        Assert.DoesNotContain("SYNC_REJECTED", log.Codes);
+        // The prepared job is kept: once back in Editor the same capture reaches the CDE.
+        receiver.ReadOnlyOnBegin = false; receiver.Level = "editor"; receiver.Actions = new[] { "create" };
+        worker.RequestPublish();
+        await Until(() => receiver.Committed.Count == 1);
+        Assert.True(receiver.Scene.ContainsKey("model"));
+      }
+      finally { worker.Dispose(); await worker.Completion; }
+    }
+    [Fact]
+    public async Task GroupIsReadBeforeTheFirstSynchronize()
+    {
+      using var folder = new OutboxTests.TestFolder();
+      var receiver = new FakeReceiver { Level = "admin", Actions = new[] { "create" } };
+      var worker = new SyncWorker(folder.Path, receiver, new RecordingLog());
+      try
+      {
+        await Until(() => worker.Access.Known);
+        Assert.True(worker.Access.CanCreate);
+        Assert.False(worker.Access.CanReplace);
+        Assert.Equal(0, receiver.Begins);
+      }
+      finally { worker.Dispose(); await worker.Completion; }
+    }
+    [Fact]
     public async Task ContentRejectedByTheCdeIsPreparedAgainOnTheNextSynchronize()
     {
       using var folder = new OutboxTests.TestFolder();
@@ -285,13 +348,23 @@ namespace OpenProject.Tests.LiveSync
       public ConcurrentQueue<string> Committed { get; } = new();
       public TaskCompletionSource<bool> Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
       public TaskCompletionSource<bool> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-      public bool BlockFirst, Reject, Waiting, DelayPresentation;
+      public bool BlockFirst, Reject, Waiting, DelayPresentation, ReadOnlyOnBegin;
       public int Begins, RejectContent;
       public string FirstJob;
-      public Task<ReceiverStatus> StatusAsync(CancellationToken token) => Task.FromResult(_status);
+      // Group of the connection in the model (CP1 contract); null mimics a CDE without per-model groups.
+      public volatile string Level;
+      public string[] Actions;
+      public Task<ReceiverStatus> StatusAsync(CancellationToken token)
+      {
+        _status.AccessLevel = Level; _status.AllowedActions = Actions; _status.ModelExists = Level == null ? null : _status.RevisionId != null;
+        return Task.FromResult(_status);
+      }
       public Task<RemoteJob> BeginAsync(SyncJob job, CancellationToken token)
       {
         Begins++; if (Waiting) return Task.FromResult(new RemoteJob { Waiting = true, PublishingUser = "Otro usuario" });
+        // The administrator moved this person to Lectura: the CDE refuses the job and reports the new group.
+        if (ReadOnlyOnBegin) { Level = "reader"; Actions = Array.Empty<string>(); }
+        if (ReadOnlyOnBegin) throw new ReceiverException(403, 0, "Solo lectura: pide al administrador del proyecto que te pase a Editor para enviar cambios.");
         if (Reject) throw new ReceiverException(413);
         FirstJob ??= job.JobId;
         _jobs[job.JobId] = job;

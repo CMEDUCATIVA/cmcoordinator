@@ -215,6 +215,295 @@ namespace OpenProject.Tests.LiveSync
       });
     }
     [Fact]
+    public void ModelGroupDrivesTheSyncButtonNoticeAndReplaceAction()
+    {
+      RunSta(() =>
+      {
+        using var resource = Assembly.GetExecutingAssembly().GetManifestResourceStream("LiveSync.SyncPanelView.xaml");
+        using var reader = new StreamReader(resource);
+        var markup = XDocument.Parse(reader.ReadToEnd());
+        markup.Descendants().First(e => e.Name.LocalName == "SyncHistoryView").Remove();
+        markup.Root.Attribute(XName.Get("Class", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Remove();
+        foreach (var attribute in markup.Descendants().Attributes().Where(a =>
+          a.Name.LocalName is "Click" or "TextChanged" or "PasswordChanged").ToArray()) attribute.Remove();
+        var panel = (UserControl)XamlReader.Parse(markup.ToString());
+        var model = new SyncPanelViewModel();
+        panel.DataContext = model;
+        model.SetDestination("1-CM", "Arquitectura");
+        Layout(panel);
+        var sync = Descendants(panel).OfType<Button>().Single(b => (string)b.Tag == "sync");
+        var replace = Descendants(panel).OfType<Button>().Single(b => (string)b.Tag == "replace");
+        var preview = Environment.GetEnvironmentVariable("CMCOORDINATOR_ACCESS_PREVIEW");
+        void Show(string level, string[] actions, bool exists, string name)
+        {
+          var access = OpenProject.Revit.LiveSync.Transport.CdeModelAccess.From(new OpenProject.Revit.LiveSync.Transport.ReceiverStatus
+            { AccessLevel = level, AllowedActions = actions, ModelExists = exists });
+          model.Refresh("Modelo de prueba", "Listo", new SyncProgress { Stage = "Al día" }, "Diagnóstico", capturedElements: 907,
+            cdeConnected: true, hasSyncWorker: true, access: access);
+          model.SetConnectionState(CdeConnectionDisplayState.Connected);
+          Layout(panel);
+          panel.Measure(new Size(280, 1400));
+          Assert.True(panel.DesiredSize.Width <= 280, "El panel con aviso debe caber en el ancho mínimo");
+          if (string.IsNullOrEmpty(preview)) return;
+          Directory.CreateDirectory(preview);
+          panel.Arrange(new Rect(0, 0, 280, 1400)); panel.UpdateLayout();
+          var bitmap = new RenderTargetBitmap(280, 760, 96, 96, PixelFormats.Pbgra32);
+          bitmap.Render(panel);
+          var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap));
+          using var output = File.Create(Path.Combine(preview, name + ".png")); png.Save(output);
+        }
+
+        Show("reader", Array.Empty<string>(), true, "lectura");
+        Assert.Equal("Solo lectura", model.SyncLabel);
+        Assert.False(sync.IsEnabled);
+        Assert.Equal("Solo lectura", AutomationProperties.GetName(sync));
+        Assert.Equal(PanelNoticeKind.Warning, model.NoticeKind);
+        Assert.Contains(Descendants(panel).OfType<TextBox>(), b => b.Text == "Solo lectura en este modelo");
+        Assert.Equal(Visibility.Visible, model.NoticeVisibility);
+        Assert.Equal("Lectura", model.GroupLabel);
+        Assert.Equal(Visibility.Visible, model.GroupVisibility);
+        Assert.Equal("Solo lectura", model.TransferTitle);
+        Assert.DoesNotContain("Pulsa Sincronizar", model.TransferDetail);
+        Assert.Equal(Visibility.Collapsed, replace.Visibility);
+
+        Show("admin", new[] { "create" }, false, "crear");
+        Assert.Equal("Crear modelo", model.SyncLabel);
+        Assert.True(sync.IsEnabled);
+        Assert.Equal(PanelNoticeKind.Info, model.NoticeKind);
+        Assert.Contains(Descendants(panel).OfType<TextBox>(), b => b.Text == "El modelo está vacío");
+        Assert.StartsWith("Pulsa Crear modelo", model.TransferDetail);
+        Assert.Equal(Visibility.Visible, model.NoticeVisibility);
+        Assert.Equal(Visibility.Collapsed, replace.Visibility);
+
+        Show("admin", new[] { "sync", "replace" }, true, "administracion");
+        Assert.Equal("Sincronizar", model.SyncLabel);
+        Assert.True(sync.IsEnabled);
+        // Coming from Lectura, the change of group is announced until the first synchronization.
+        Assert.Equal(PanelNoticeKind.Success, model.NoticeKind);
+        Assert.Equal("Ahora eres Administración", model.NoticeTitle);
+        Assert.Equal(Visibility.Visible, replace.Visibility);
+        Assert.True(replace.IsEnabled);
+        Assert.Equal("Administración", model.GroupLabel);
+        Assert.Equal("Listo para sincronizar", model.TransferTitle);
+
+        Show("editor", new[] { "sync" }, true, "editor");
+        Assert.Equal("Sincronizar", model.SyncLabel);
+        Assert.Equal(Visibility.Collapsed, replace.Visibility);
+
+        // A CDE without per-model groups keeps the previous behaviour.
+        Show(null, null, true, "sin-grupos");
+        Assert.Equal("Sincronizar", model.SyncLabel);
+        Assert.True(sync.IsEnabled);
+        Assert.Equal(PanelNoticeKind.None, model.NoticeKind);
+        Assert.Equal(Visibility.Collapsed, model.GroupVisibility);
+        Assert.Contains(Descendants(panel).OfType<TextBlock>(), b => b.Text == "Conectado");
+      });
+    }
+    [Fact]
+    public void RevocationPromotionQueueAndRestoreFollowUi8()
+    {
+      RunSta(() =>
+      {
+        using var resource = Assembly.GetExecutingAssembly().GetManifestResourceStream("LiveSync.SyncPanelView.xaml");
+        using var reader = new StreamReader(resource);
+        var markup = XDocument.Parse(reader.ReadToEnd());
+        markup.Descendants().First(e => e.Name.LocalName == "SyncHistoryView").Remove();
+        markup.Root.Attribute(XName.Get("Class", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Remove();
+        foreach (var attribute in markup.Descendants().Attributes().Where(a =>
+          a.Name.LocalName is "Click" or "TextChanged" or "PasswordChanged").ToArray()) attribute.Remove();
+        var panel = (UserControl)XamlReader.Parse(markup.ToString());
+        var model = new SyncPanelViewModel();
+        panel.DataContext = model;
+        model.SetDestination("1-CM", "Arquitectura");
+        Layout(panel);
+        var sync = Descendants(panel).OfType<Button>().Single(b => (string)b.Tag == "sync");
+        var replace = Descendants(panel).OfType<Button>().Single(b => (string)b.Tag == "replace");
+        var restore = Descendants(panel).OfType<Button>().Single(b => (string)b.Tag == "restore");
+        void Show(string level, string[] actions, SyncProgress progress, bool syncRequested = false)
+        {
+          var access = OpenProject.Revit.LiveSync.Transport.CdeModelAccess.From(new OpenProject.Revit.LiveSync.Transport.ReceiverStatus
+            { AccessLevel = level, AllowedActions = actions, ModelExists = true });
+          model.Refresh("Modelo de prueba", "Listo", progress, "Diagnóstico", capturedElements: 907,
+            cdeConnected: true, hasSyncWorker: true, syncRequested: syncRequested, access: access);
+          Layout(panel);
+          panel.Measure(new Size(280, 1400));
+          Assert.True(panel.DesiredSize.Width <= 280, "El panel debe caber en el ancho mínimo");
+          var preview = Environment.GetEnvironmentVariable("CMCOORDINATOR_ACCESS_PREVIEW");
+          if (string.IsNullOrEmpty(preview)) return;
+          Directory.CreateDirectory(preview);
+          panel.Arrange(new Rect(0, 0, 280, 1400)); panel.UpdateLayout();
+          var bitmap = new RenderTargetBitmap(280, 820, 96, 96, PixelFormats.Pbgra32);
+          bitmap.Render(panel);
+          var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap));
+          using var output = File.Create(Path.Combine(preview, "ui8-" + progress.Stage.Replace(" ", "-") + "-" + level + ".png")); png.Save(output);
+        }
+
+        // UI-8 #2 · Lectura → Editor: green notice until the first synchronization.
+        Show("reader", Array.Empty<string>(), new SyncProgress { Stage = "Al día", HasPendingChanges = true });
+        Assert.Contains("guardados en este equipo", model.NoticeText);
+        Show("editor", new[] { "sync" }, new SyncProgress { Stage = "Al día", HasPendingChanges = true });
+        Assert.Equal(PanelNoticeKind.Success, model.NoticeKind);
+        Assert.Contains(Descendants(panel).OfType<TextBox>(), b => b.Text == "Ahora eres Editor");
+        Assert.Contains("pulsa Sincronizar", model.NoticeText);
+        Show("editor", new[] { "sync" }, new SyncProgress { Stage = "Al día" }, syncRequested: true);
+        Assert.Equal(PanelNoticeKind.None, model.NoticeKind);
+
+        // UI-8 #10 · position in the CDE line.
+        Show("editor", new[] { "sync" }, new SyncProgress { Stage = "En cola del CDE", QueuePosition = 2, JobId = "j", Total = 1 });
+        Assert.Equal("En cola · posición 2", model.TransferTitle);
+
+        // UI-8 #11 · revoked: red notice and «Volver a conectar», which stays enabled.
+        var revoked = new SyncProgress { Stage = "Conexión revocada", Attention = true, Revoked = true };
+        Show("admin", new[] { "sync", "replace", "restore" }, revoked);
+        Assert.Equal("Volver a conectar", model.SyncLabel);
+        Assert.True(sync.IsEnabled);
+        Assert.Equal(PanelNoticeKind.Danger, model.NoticeKind);
+        Assert.Contains(Descendants(panel).OfType<TextBox>(), b => b.Text == "Conexión revocada");
+        Assert.Equal("Conexión revocada", model.TransferTitle);
+        Assert.Equal(Visibility.Collapsed, replace.Visibility);
+        Assert.Equal(Visibility.Collapsed, restore.Visibility);
+        Assert.Equal(CdeConnectionDisplayState.Revoked, SyncPanelViewModel.ResolveConnectionState(true, revoked, false, true));
+
+        // UI-8 #9 · after a replacement Administración can restore the model it replaced.
+        Show("admin", new[] { "sync", "replace", "restore" }, new SyncProgress { Stage = "Al día" });
+        Assert.Equal(Visibility.Visible, restore.Visibility);
+        Assert.True(restore.IsEnabled);
+        Show("admin", new[] { "sync", "replace" }, new SyncProgress { Stage = "Al día" });
+        Assert.Equal(Visibility.Collapsed, restore.Visibility);
+      });
+    }
+    [Fact]
+    public void LiveButtonComparisonAndIdentityFollowUi8Proposal()
+    {
+      RunSta(() =>
+      {
+        using var resource = Assembly.GetExecutingAssembly().GetManifestResourceStream("LiveSync.SyncPanelView.xaml");
+        using var reader = new StreamReader(resource);
+        var markup = XDocument.Parse(reader.ReadToEnd());
+        markup.Descendants().First(e => e.Name.LocalName == "SyncHistoryView").Remove();
+        markup.Root.Attribute(XName.Get("Class", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Remove();
+        foreach (var attribute in markup.Descendants().Attributes().Where(a =>
+          a.Name.LocalName is "Click" or "TextChanged" or "PasswordChanged").ToArray()) attribute.Remove();
+        var panel = (UserControl)XamlReader.Parse(markup.ToString());
+        var model = new SyncPanelViewModel();
+        panel.DataContext = model;
+        model.SetDestination("cmeducativa", "Arquitectura");
+        Layout(panel);
+        var sync = Descendants(panel).OfType<Button>().Single(b => (string)b.Tag == "sync");
+        var replace = Descendants(panel).OfType<Button>().Single(b => (string)b.Tag == "replace");
+        var preview = Environment.GetEnvironmentVariable("CMCOORDINATOR_ACCESS_PREVIEW");
+        void Show(SyncProgress progress, string name, bool live = false, bool chosen = false, string level = "admin")
+        {
+          var access = OpenProject.Revit.LiveSync.Transport.CdeModelAccess.From(new OpenProject.Revit.LiveSync.Transport.ReceiverStatus
+            { AccessLevel = level, AllowedActions = level == "admin" ? new[] { "sync", "replace" } : new[] { "sync" }, ModelExists = true, UserName = "Francis Vin" });
+          model.Refresh("Modelo de prueba", "Listo", progress, "Diagnóstico", capturedElements: 907,
+            cdeConnected: true, hasSyncWorker: true, access: access, liveMode: live, syncChosen: chosen);
+          Layout(panel);
+          panel.Measure(new Size(280, 1400));
+          Assert.True(panel.DesiredSize.Width <= 280, "El panel debe caber en el ancho mínimo");
+          if (string.IsNullOrEmpty(preview)) return;
+          Directory.CreateDirectory(preview);
+          panel.Arrange(new Rect(0, 0, 280, 1400)); panel.UpdateLayout();
+          var bitmap = new RenderTargetBitmap(280, 820, 96, 96, PixelFormats.Pbgra32);
+          bitmap.Render(panel);
+          var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap));
+          using var output = File.Create(Path.Combine(preview, "ui8v66-" + name + ".png")); png.Save(output);
+        }
+
+        // UI-8 #27 · who is connected, with the group.
+        Show(new SyncProgress { Stage = "Al día" }, "cabecera");
+        Assert.Equal("Francis Vin", model.IdentityName);
+        var identity = Descendants(panel).OfType<TextBlock>().Select(b => b.Inlines.OfType<System.Windows.Documents.Run>().Select(r => r.Text).ToArray())
+          .FirstOrDefault(runs => runs.Contains("Francis Vin"));
+        Assert.NotNull(identity);
+        Assert.Contains("Administración", identity);
+
+        // UI-8 #24 · connecting compares and says so before anything is sent.
+        var differs = new ReplacePreview { RemoteCount = 12465, Compared = true, Exact = true, Local = 12430, Added = 35, Changed = 120, Removed = 4 };
+        Show(new SyncProgress { Stage = "Al día", Comparison = differs }, "compara-difiere");
+        Assert.Equal(PanelNoticeKind.Info, model.NoticeKind);
+        Assert.Equal("Tu Revit difiere del CDE", model.NoticeTitle);
+        Assert.Contains("+35 nuevos · 120 cambiados · −4 que no tienes", model.NoticeText);
+        Assert.Contains("Reemplazar quita el modelo", model.NoticeText);
+        Assert.Equal("Sincronizar", model.SyncLabel);
+        Assert.True(replace.IsEnabled);
+        var matches = new ReplacePreview { RemoteCount = 12430, Compared = true, Exact = true, Local = 12430 };
+        Show(new SyncProgress { Stage = "Al día", Comparison = matches }, "compara-coincide", level: "editor");
+        Assert.Equal("Coincide con el CDE", model.NoticeTitle);
+        Assert.DoesNotContain("Reemplazar", model.NoticeText);
+        Show(new SyncProgress { Stage = "Al día", Comparison = new ReplacePreview { RemoteCount = 900 } }, "compara-sin-captura");
+        Assert.Equal("Modelo con contenido en el CDE", model.NoticeTitle);
+
+        // UI-8 #25 · after choosing Sincronizar, «Reemplazar» stays visible, off, with the reason.
+        Show(new SyncProgress { Stage = "Solicitud de sincronización", Comparison = differs }, "reemplazar-gris", live: true, chosen: true);
+        Assert.Equal(Visibility.Visible, replace.Visibility);
+        Assert.False(replace.IsEnabled);
+        Assert.StartsWith("Ya estás unido al modelo", model.ReplaceHint);
+        Assert.Equal(PanelNoticeKind.None, model.NoticeKind); // The comparison notice goes once the person chose.
+
+        // UI-8 #26 · synchronized and live: pressed «En vivo», click ignored, full colour.
+        var stored = new SyncProgress { Stage = "Al día", Joined = true, ReceiverRevision = "rev-1", ViewerRevision = "rev-1" };
+        Show(stored, "en-vivo", live: true, chosen: true);
+        Assert.True(model.IsLive);
+        Assert.Equal("En vivo", model.SyncLabel);
+        Assert.Equal("En vivo", AutomationProperties.GetName(sync));
+        Assert.False(model.CanSynchronize);
+        Assert.True(sync.IsEnabled);
+        Assert.Equal(new Thickness(3, 3, 1, 1), sync.BorderThickness);
+        Assert.Equal("Sincronizado", model.TransferTitle);
+        // A live edit being sent keeps «En vivo».
+        Show(new SyncProgress { Stage = "Enviando", Joined = true, JobId = "j", Total = 2, Done = 1 }, "en-vivo-enviando", live: true, chosen: true);
+        Assert.Equal("En vivo", model.SyncLabel);
+
+        // UI-8 #11 · a lost connection, a pause or an error bring Sincronizar back to verify.
+        Show(new SyncProgress { Stage = "Esperando conexión", Joined = true, HasPendingChanges = true }, "sin-red", live: true, chosen: true);
+        Assert.False(model.IsLive);
+        Assert.Equal("Sincronizar", model.SyncLabel);
+        Assert.True(model.CanSynchronize);
+        Show(new SyncProgress { Stage = "En pausa", Joined = true, Paused = true }, "pausa", live: false, chosen: true);
+        Assert.False(model.IsLive);
+
+        // UI-8 #29 · a first merge that differs in nearly everything is confirmed first.
+        var mostly = new ReplacePreview { RemoteCount = 12000, Compared = true, Exact = true, Local = 12000, Changed = 11900 };
+        Show(new SyncProgress { Stage = SyncWorker.ConfirmStage, NeedsConfirmation = true, Comparison = mostly }, "confirmar", live: true, chosen: true);
+        Assert.Equal(PanelNoticeKind.Warning, model.NoticeKind);
+        Assert.Equal("Tu Revit difiere del CDE en casi todo", model.NoticeTitle);
+        Assert.Equal("Confirmar sincronización…", model.SyncLabel);
+        Assert.True(sync.IsEnabled);
+        Assert.Equal(SyncWorker.ConfirmStage, model.TransferTitle);
+      });
+    }
+    [Fact]
+    public void ReplaceWarningShowsSizeAuthorAndChanges()
+    {
+      var text = SyncPanelViewModel.ReplaceSummary(new ReplacePreview { RemoteCount = 1240, LastPublishedBy = "Ana",
+        LastPublishedAt = DateTimeOffset.UtcNow, Compared = true, Exact = true, Added = 12, Changed = 8, Removed = 37 });
+      Assert.Contains("1.240 elementos, última revisión de Ana", text.Replace("1,240", "1.240"));
+      Assert.Contains("+12 nuevos · 8 cambiados · −37 se quitarán", text);
+      Assert.DoesNotContain("aproximadas", text);
+      Assert.Contains("aproximadas", SyncPanelViewModel.ReplaceSummary(new ReplacePreview { Compared = true, Exact = false }));
+      Assert.Contains("no se pudo comparar", SyncPanelViewModel.ReplaceSummary(null));
+      Assert.Contains("Aún no hay una captura local", SyncPanelViewModel.ReplaceSummary(new ReplacePreview { RemoteCount = 3 }));
+      Assert.Contains("de 1.240 elementos, reemplazada por Francis", SyncPanelViewModel.RestoreSummary(
+        new OpenProject.Revit.LiveSync.Transport.RestorePointInfo { ElementCount = 1240, CreatedBy = "Francis" }).Replace("1,240", "1.240"));
+    }
+    [Fact]
+    public void ReceiverStatusReadsTheModelGroupContract()
+    {
+      var status = Newtonsoft.Json.JsonConvert.DeserializeObject<OpenProject.Revit.LiveSync.Transport.ReceiverStatus>(
+        "{\"accessLevel\":\"admin\",\"allowedActions\":[\"sync\",\"replace\"],\"modelExists\":true,\"userName\":\"Francis Vin\"}");
+      var access = OpenProject.Revit.LiveSync.Transport.CdeModelAccess.From(status);
+      Assert.Equal("Administración", access.GroupName);
+      Assert.Equal("Francis Vin", access.UserName);
+      Assert.True(access.CanReplace && access.CanSynchronize && !access.CanCreate && access.ModelExists == true);
+      var legacy = OpenProject.Revit.LiveSync.Transport.CdeModelAccess.From(Newtonsoft.Json.JsonConvert.DeserializeObject<OpenProject.Revit.LiveSync.Transport.ReceiverStatus>("{}"));
+      Assert.False(legacy.Known);
+      Assert.True(legacy.CanSynchronize);
+      Assert.False(legacy.CanReplace);
+      var unknownLevel = OpenProject.Revit.LiveSync.Transport.CdeModelAccess.From(new OpenProject.Revit.LiveSync.Transport.ReceiverStatus { AccessLevel = "owner", AllowedActions = new[] { "replace" } });
+      Assert.False(unknownLevel.CanReplace);
+    }
+    [Fact]
     public void HistoryControlLoadsAtNarrowDockWidth()
     {
       RunSta(() =>

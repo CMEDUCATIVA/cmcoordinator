@@ -41,6 +41,10 @@ namespace OpenProject.Revit.LiveSync
     // until Pausar, a new connection or a failed capture.
     private static volatile bool _live;
     private static bool LiveMode { get => _live; set { _live = value; if (_worker != null) _worker.Live = value; } }
+    public static bool IsLiveMode => IsCdeConnected && _live;
+    // UI-8 #25: once the person chooses Sincronizar on this connection, «Reemplazar» stays off until a new connection.
+    private static volatile bool _syncChosen;
+    public static bool SyncChosen => IsCdeConnected && _syncChosen;
     private static bool _reconciling, _resumeAfterCapture;
     private static string _message;
     private static string _documentPath;
@@ -62,6 +66,23 @@ namespace OpenProject.Revit.LiveSync
     private static bool IsCapturing => _captureArmed && _capture?.HasWork == true;
     public static bool IsSyncPreparing => IsCapturing || _worker?.IsPreparing == true || _worker?.IsAwaitingSnapshot == true;
     public static bool IsSyncRequested => Volatile.Read(ref _syncRequested) != 0;
+    // Group of the active connection in its CDE model; unknown until the worker reads the receiver status.
+    public static CdeModelAccess Access => IsCdeConnected ? _worker.Access : CdeModelAccess.Unknown;
+    // «Reemplazar modelo…» first shows what it would change; the worker compares its last capture with the CDE huellas.
+    public static Task<ReplacePreview> PreviewReplaceAsync() =>
+      IsCdeConnected ? _worker.PreviewReplaceAsync() : Task.FromResult<ReplacePreview>(null);
+    // After restoring, this Revit still holds the capture that replaced the model: publishing stays paused so it is not
+    // sent again by itself; resuming sends what is missing from the restored model.
+    public static async Task RestoreAsync()
+    {
+      if (!IsCdeConnected) throw new InvalidOperationException("Conecta el destino CDE antes de restaurar el modelo.");
+      var worker = _worker;
+      await worker.RestoreAsync().ConfigureAwait(true);
+      if (worker != _worker) return;
+      LiveMode = false; worker.Pause(true);
+      _message = "Modelo restaurado en el CDE · sincronización en pausa; al reanudar se envía lo que falte de tu vista 3D";
+      _telemetry?.Emit("control", "MODEL_RESTORED", "Modelo restaurado al punto anterior al último reemplazo; sincronización en pausa");
+    }
     public static void ConnectDestination(CdeDestination destination)
     {
       if (destination != null && !Entry.CdeAccessController.MatchesDestination(destination.Address, destination.UserId))
@@ -152,7 +173,7 @@ namespace OpenProject.Revit.LiveSync
       _capture = new CaptureScheduler(document, view, source, _telemetry, Path.Combine(Root, "logs"));
       _drawings = new Drawings.DrawingScheduler(document, queue, _telemetry);
       _lastSnapshot = null;
-      _captureArmed = false; _needsCapture = false; LiveMode = false;
+      _captureArmed = false; _needsCapture = false; LiveMode = false; _syncChosen = false;
       _modelLabel = document.Title + " · " + view.Name; _reconciling = false; _resumeAfterCapture = false;
       _message = "Conectado · pulsa Sincronizar para capturar y publicar la vista 3D";
       _telemetry.Emit("session", "SESSION_OPEN", "Sesión local abierta; la captura empieza al pulsar Sincronizar");
@@ -242,8 +263,17 @@ namespace OpenProject.Revit.LiveSync
             else if (_worker.IsPaused) ResumeLive();
             else { LiveMode = false; _worker.Pause(true); _message = "En pausa · los cambios se guardan; pulsa Reanudar para volver a tiempo real"; }
           }
-          else if (action is "sync" or "retry") Synchronize();
+          else if (action is "sync" or "retry") { _syncChosen = true; Synchronize(); }
+          // UI-8 #29: the person accepted sending a first merge that differs from the CDE in nearly everything.
+          else if (action == "confirmMerge") { _syncChosen = true; _worker.ConfirmFullMerge(); Synchronize(); }
           else if (action == "reset") { _message = null; Reconcile(); _drawings?.RedrawAll(); _captureArmed = true; _needsCapture = true; }
+          // Confirmed in the panel; the CDE only offers it to Administración of a model with content.
+          else if (action == "replace")
+          {
+            if (!_worker.Access.CanReplace) { _message = "Solo Administración puede reemplazar el modelo."; continue; }
+            Reconcile(); _drawings?.RedrawAll(); _worker.RequestReplace(); Synchronize();
+            _telemetry.Emit("control", "REPLACE_REQUESTED", "Reemplazo del modelo confirmado: captura completa que sustituye la revisión vigente");
+          }
         }
         catch (Exception error) { _message = error.Message; _telemetry.Emit("control", "ACTION_FAILED", "No se pudo ejecutar la acción: " + SyncFailure.Describe(error)); }
         finally { if (action == "sync") Interlocked.Exchange(ref _syncRequested, 0); }

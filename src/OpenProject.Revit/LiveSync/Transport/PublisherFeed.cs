@@ -47,6 +47,9 @@ namespace OpenProject.Revit.LiveSync.Transport
       }
     }
 
+    /// <summary>UI-8 logic 5: the CDE closed this channel (revoked or no longer authorized), known as soon as it happens.</summary>
+    public bool Rejected { get { lock (_gate) return _rejected != 0; } }
+
     public async Task<ReceiverStatus> ReadAsync(CancellationToken token)
     {
       lock (_gate) _run ??= Task.Run(RunAsync);
@@ -56,7 +59,8 @@ namespace OpenProject.Revit.LiveSync.Transport
         token.ThrowIfCancellationRequested();
         lock (_gate)
         {
-          if (_rejected != 0) throw new ReceiverException(_rejected);
+          // The CDE closes the channel of a connection it no longer authorizes.
+          if (_rejected != 0) throw new ReceiverException(_rejected, 0, _rejected == 403 ? ReceiverException.RevokedReason : null);
           if (_connected && _status != null && Fresh() && (_expectedRevision == null || _status.RevisionId == _expectedRevision))
           { _expectedRevision = null; return _status; }
         }

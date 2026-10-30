@@ -36,7 +36,8 @@ namespace OpenProject.Revit.LiveSync.Queue
           CREATE TABLE IF NOT EXISTS history (id TEXT PRIMARY KEY,state TEXT,detail TEXT,time TEXT);
           CREATE TABLE IF NOT EXISTS drawing_desired (id TEXT PRIMARY KEY,json TEXT NOT NULL,hash TEXT NOT NULL);
           CREATE TABLE IF NOT EXISTS drawing_target (id TEXT PRIMARY KEY,json TEXT NOT NULL,hash TEXT NOT NULL);
-          CREATE TABLE IF NOT EXISTS drawing_confirmed (id TEXT PRIMARY KEY,json TEXT NOT NULL,hash TEXT NOT NULL);");
+          CREATE TABLE IF NOT EXISTS drawing_confirmed (id TEXT PRIMARY KEY,json TEXT NOT NULL,hash TEXT NOT NULL);
+          CREATE TABLE IF NOT EXISTS baseline (id TEXT PRIMARY KEY,hash TEXT NOT NULL);");
       }
       catch { _db?.Dispose(); _lease.Dispose(); throw; }
     }
@@ -124,18 +125,73 @@ namespace OpenProject.Revit.LiveSync.Queue
       }
     }
 
+    // Huella sent with each element: the first 16 hex digits of the hash of its captured JSON.
+    public const int FingerprintLength = 16;
+    /// <summary>What a complete capture from this queue would do to a CDE revision with these huellas.</summary>
+    public (int Local, int Added, int Changed, int Removed) CompareWithRemote(IReadOnlyDictionary<string, string> remote)
+    {
+      int local = 0, added = 0, changed = 0;
+      var unseen = new HashSet<string>(remote.Keys);
+      using (var cmd = Command("SELECT id,hash FROM desired"))
+      using (var reader = cmd.ExecuteReader())
+        while (reader.Read())
+        {
+          local++;
+          var id = reader.GetString(0);
+          if (!remote.TryGetValue(id, out var print)) { added++; continue; }
+          unseen.Remove(id);
+          if (print != reader.GetString(1).Substring(0, FingerprintLength)) changed++;
+        }
+      return (local, added, changed, unseen.Count);
+    }
+    /// <param name="merge">Merge with the CDE revision instead of replacing it.</param>
+    /// <param name="remote">Huellas of the CDE revision when it is not this queue's own last revision. With a confirmed
+    /// history only this queue's own changes travel, plus its elements missing from the CDE; without one, what differs
+    /// from the CDE. Only elements this queue published and Revit deleted are removed: others' work is never reverted.</param>
+    /// <summary>
+    /// UI-8 logic 8 · the starting point: the capture of this Revit when it connects to a model with content, kept for a
+    /// queue that never published. From then on only what changes against it travels, so an old copy never rewrites
+    /// what others did nor brings back what they removed. Returns false when the queue already has a history or a point.
+    /// </summary>
+    public bool RecordBaseline()
+    {
+      using (var count = Command("SELECT (SELECT count(*) FROM baseline)+(SELECT count(*) FROM confirmed)"))
+        if (Convert.ToInt32(count.ExecuteScalar()) > 0 || Get("revision") != null) return false;
+      using var transaction = _db.BeginTransaction();
+      Execute("INSERT OR REPLACE INTO baseline SELECT id,hash FROM desired");
+      Set("baselineAt", DateTime.UtcNow.ToString("o"));
+      transaction.Commit();
+      using var recorded = Command("SELECT count(*) FROM baseline");
+      return Convert.ToInt32(recorded.ExecuteScalar()) > 0;
+    }
+    public bool HasBaseline { get { using var count = Command("SELECT count(*) FROM baseline"); return Convert.ToInt32(count.ExecuteScalar()) > 0; } }
+
     public SyncJob Prepare(string sessionId, long startedAt, string baseRevision, bool reset,
-      Action<int, int, long> progress = null, bool compact = false, bool drawings = false)
+      Action<int, int, long> progress = null, bool compact = false, bool drawings = false,
+      bool merge = false, IReadOnlyDictionary<string, string> remote = null, IReadOnlyCollection<string> gone = null,
+      string remoteCatalog = null)
     {
       var jobId = Guid.NewGuid().ToString("N");
       History(jobId, "Preparando paquetes", "Agrupando la revisión sin cargar el modelo completo en memoria");
       using var transaction = _db.BeginTransaction();
-      reset |= Get("forceReset") == "1";
+      // A merge never turns into a replacement: a lost base is rebuilt against the huellas of the CDE instead.
+      if (!merge) reset |= Get("forceReset") == "1";
       Execute("DELETE FROM target; INSERT INTO target SELECT * FROM desired; DELETE FROM chunks;");
+      var compare = !reset && remote != null;
+      if (compare)
+      {
+        Execute("CREATE TEMP TABLE IF NOT EXISTS remote (id TEXT PRIMARY KEY,hash TEXT NOT NULL); DELETE FROM remote;");
+        foreach (var pair in remote)
+          Execute("INSERT OR REPLACE INTO remote VALUES($id,$hash)", ("$id", pair.Key), ("$hash", pair.Value ?? ""));
+        Execute("CREATE TEMP TABLE IF NOT EXISTS gone (id TEXT PRIMARY KEY); DELETE FROM gone;");
+        foreach (var id in gone ?? Array.Empty<string>()) Execute("INSERT OR IGNORE INTO gone VALUES($id)", ("$id", id));
+      }
       var removed = new List<string>();
       if (!reset)
       {
-        using var removedCommand = Command("SELECT c.id FROM confirmed c LEFT JOIN target t ON c.id=t.id WHERE t.id IS NULL");
+        using var removedCommand = Command(compare
+          ? "SELECT c.id FROM confirmed c JOIN remote r ON c.id=r.id LEFT JOIN target t ON c.id=t.id WHERE t.id IS NULL"
+          : "SELECT c.id FROM confirmed c LEFT JOIN target t ON c.id=t.id WHERE t.id IS NULL");
         using var removedReader = removedCommand.ExecuteReader();
         while (removedReader.Read()) removed.Add(removedReader.GetString(0));
       }
@@ -143,12 +199,26 @@ namespace OpenProject.Revit.LiveSync.Queue
       var job = new SyncJob { JobId = jobId, SessionId = sessionId, SessionStartedAt = startedAt,
         SourceId = Get("source"), DocumentId = Get("documentId"), LegacySourceId = Get("legacySourceId"),
         Title = Get("title"), View = Get("view"), Sequence = sequence,
-        BaseRevision = baseRevision, Reset = reset };
+        BaseRevision = baseRevision, Reset = reset, Merge = merge && !reset ? true : null };
       using var digest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-      var updatedSql = reset ? "SELECT json FROM target ORDER BY id" :
-        "SELECT t.json FROM target t LEFT JOIN confirmed c ON t.id=c.id WHERE c.id IS NULL OR c.hash<>t.hash ORDER BY t.id";
-      var updatedCountSql = reset ? "SELECT count(*) FROM target" :
-        "SELECT count(*) FROM target t LEFT JOIN confirmed c ON t.id=c.id WHERE c.id IS NULL OR c.hash<>t.hash";
+      const string differsFromRemote = "FROM target t LEFT JOIN remote r ON t.id=r.id WHERE r.id IS NULL OR r.hash<>substr(t.hash,1,16)";
+      const string differsFromConfirmed = "FROM target t LEFT JOIN confirmed c ON t.id=c.id WHERE c.id IS NULL OR c.hash<>t.hash";
+      const string ownChangesOrMissing = "FROM target t LEFT JOIN confirmed c ON t.id=c.id LEFT JOIN remote r ON t.id=r.id WHERE c.id IS NULL OR c.hash<>t.hash OR r.id IS NULL";
+      bool history;
+      using (var confirmedCount = Command("SELECT count(*) FROM confirmed"))
+        history = Get("revision") != null && Convert.ToInt32(confirmedCount.ExecuteScalar()) > 0;
+      // With a starting point (UI-8 logic 8) the reference of each element is its own confirmed state or, if it never sent
+      // it, the copy at connecting. What changed against that travels; so does what the CDE does not have unless the CDE
+      // removed it (another person deleted it: it comes back only if this person changes it). An element that only differs
+      // from the CDE, unchanged since connecting, is an old copy of someone else's work and stays out.
+      const string sinceBaseline = "FROM target t LEFT JOIN confirmed c ON t.id=c.id LEFT JOIN baseline b ON t.id=b.id LEFT JOIN remote r ON t.id=r.id " +
+        "LEFT JOIN gone g ON t.id=g.id " +
+        "WHERE (COALESCE(c.hash,b.hash) IS NULL OR COALESCE(c.hash,b.hash)<>t.hash OR (r.id IS NULL AND g.id IS NULL)) " +
+        "AND (r.id IS NULL OR r.hash<>substr(t.hash,1,16))";
+      var baseline = compare && HasBaseline;
+      var updatedFrom = reset ? "FROM target t" : !compare ? differsFromConfirmed : baseline ? sinceBaseline : history ? ownChangesOrMissing : differsFromRemote;
+      var updatedSql = "SELECT t.json,t.id,t.hash " + updatedFrom + " ORDER BY t.id";
+      var updatedCountSql = "SELECT count(*) " + updatedFrom;
       using var countCommand = Command(updatedCountSql);
       var updatedTotal = Convert.ToInt32(countCommand.ExecuteScalar());
       var preparationTotal = updatedTotal + removed.Count;
@@ -162,32 +232,43 @@ namespace OpenProject.Revit.LiveSync.Queue
         Execute("INSERT INTO chunks(idx,payload,hash) VALUES($i,$p,$h)",
           ("$i", partIndex++), ("$p", bytes), ("$h", SyncEncoding.Hash(bytes)));
       }
-      Store("{\"protocol\":3,\"kind\":\"catalog\",\"bim\":" + (Get("bim") ?? "null") + "}");
+      // UI-8 logic 9: the catalog (some 650 KB) travels only when it changed; a merge with the same one leaves it out.
+      var catalog = Get("bim") ?? "null";
+      job.CatalogHash = SyncEncoding.Hash(catalog);
+      // A job always has one part at least: with nothing else to send, the catalog goes.
+      if (reset || !merge || remoteCatalog != job.CatalogHash || updatedTotal + removed.Count == 0) Store("{\"protocol\":3,\"kind\":\"catalog\",\"bim\":" + catalog + "}");
       progress?.Invoke(0, preparationTotal, totalBytes);
       const string prefix = "{\"protocol\":3,\"kind\":\"elements\",\"updated\":[";
       const string tableKey = "],\"geometries\":";
+      const string printsKey = ",\"fingerprints\":";
       var compactor = compact ? new PartCompactor() : null;
-      var frame = Encoding.UTF8.GetByteCount(prefix) + 2 + (compact ? tableKey.Length : 0);
+      var frame = Encoding.UTF8.GetByteCount(prefix) + 2 + (compact ? tableKey.Length : 0) + printsKey.Length + 2;
       var builder = new StringBuilder(prefix); var inPart = 0; var partBytes = frame;
+      var prints = new Dictionary<string, string>();
       // The opening element's new shapes leave this part's table; every shape it uses goes to the next part.
       void Flush(IReadOnlyList<string> introduced, IReadOnlyList<string> nextPartShapes)
       {
-        builder.Append(compactor == null ? "]}" : tableKey + compactor.Table(introduced) + "}");
-        Store(builder.ToString()); builder.Clear().Append(prefix); inPart = 0; partBytes = frame;
+        builder.Append(compactor == null ? "]" : tableKey + compactor.Table(introduced));
+        builder.Append(printsKey).Append(JsonConvert.SerializeObject(prints)).Append('}');
+        Store(builder.ToString()); builder.Clear().Append(prefix); inPart = 0; partBytes = frame; prints.Clear();
         compactor?.KeepOnly(nextPartShapes ?? Array.Empty<string>());
       }
       using (var command = Command(updatedSql))
       using (var reader = command.ExecuteReader()) while (reader.Read())
       {
         var json = reader.GetString(0);
+        var id = reader.GetString(1);
+        var print = reader.GetString(2).Substring(0, FingerprintLength);
         IReadOnlyList<string> fresh = Array.Empty<string>(), used = Array.Empty<string>();
         if (compactor != null) json = compactor.Compact(json, out fresh, out used);
-        var jsonBytes = Encoding.UTF8.GetByteCount(json) + (inPart > 0 ? 1 : 0);
+        var printBytes = Encoding.UTF8.GetByteCount(JsonConvert.ToString(id)) + FingerprintLength + 4;
+        var jsonBytes = Encoding.UTF8.GetByteCount(json) + (inPart > 0 ? 1 : 0) + printBytes;
         // Shapes first seen in this element move with it if it opens the next part.
         if (inPart > 0 && (partBytes + jsonBytes + (compactor?.Bytes ?? 0) > SyncEncoding.ChunkBytes || inPart >= Capture.CaptureLimits.PartElements))
         { Flush(fresh, used); jsonBytes -= 1; }
         if (inPart++ > 0) builder.Append(',');
         builder.Append(json); partBytes += jsonBytes; updatedCount++;
+        prints[id] = print;
         if (updatedCount == updatedTotal || updatedCount % 25 == 0)
           progress?.Invoke(updatedCount, preparationTotal, totalBytes + partBytes + (compactor?.Bytes ?? 0));
       }

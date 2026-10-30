@@ -16,6 +16,8 @@ namespace OpenProject.Revit.LiveSync.Transport
     // Optional capabilities of the CDE (sharedGeometry, gzip); older servers omit them.
     public string[] Features { get; set; }
     public bool Supports(string feature) => Array.IndexOf(Features ?? Array.Empty<string>(), feature) >= 0;
+    // UI-8 logic 9: hash of the BIM catalog the CDE model has (null on older servers or before the first one).
+    public string CatalogHash { get; set; }
     public string RevisionId { get; set; }
     public string ViewerRevision { get; set; }
     public string SourceId { get; set; }
@@ -23,6 +25,8 @@ namespace OpenProject.Revit.LiveSync.Transport
     public long SessionStartedAt { get; set; }
     public int Count { get; set; }
     public long UserId { get; set; }
+    // Name of the account this connection belongs to (older servers omit it).
+    public string UserName { get; set; }
     public long ProjectId { get; set; }
     public long ModelId { get; set; }
     public long ChannelId { get; set; }
@@ -32,12 +36,40 @@ namespace OpenProject.Revit.LiveSync.Transport
     public string ProjectName { get; set; }
     public string ModelName { get; set; }
     public string StateCode { get; set; }
+    // Per-model group of this connection (feature "modelLevels"); older servers omit all three.
+    public string AccessLevel { get; set; }
+    public string[] AllowedActions { get; set; }
+    public bool? ModelExists { get; set; }
+    // Who published the current revision and when, and what the last replacement left to restore (older servers omit them).
+    public string LastPublishedBy { get; set; }
+    public DateTimeOffset? LastPublishedAt { get; set; }
+    public RestorePointInfo RestorePoint { get; set; }
+  }
+  /// <summary>The revision a replacement of the model left behind; Administración can return to it.</summary>
+  public sealed class RestorePointInfo
+  {
+    public string RevisionId { get; set; }
+    public int ElementCount { get; set; }
+    public DateTimeOffset? CreatedAt { get; set; }
+    public string CreatedBy { get; set; }
+  }
+  /// <summary>Content hash of each element in the CDE revision, as its publisher computed it.</summary>
+  public sealed class RemoteFingerprints
+  {
+    public string RevisionId { get; set; }
+    public int ElementCount { get; set; }
+    public Dictionary<string, string> Fingerprints { get; set; } = new();
+    public bool Complete { get; set; }
+    // UI-8 logic 8: ids removed from the model since its last complete capture (an older CDE sends none).
+    public List<string> Removed { get; set; } = new();
   }
   public sealed class RemoteJob
   {
     public bool Committed { get; set; }
     public bool Waiting { get; set; }
     public string PublishingUser { get; set; }
+    // Place in the CDE line counting the publication in progress (feature "queue"); 2 means next.
+    public int? Position { get; set; }
     public List<int> Received { get; set; } = new();
   }
   public sealed class ReceiverException : Exception
@@ -48,6 +80,12 @@ namespace OpenProject.Revit.LiveSync.Transport
       : base("El receptor devolvió HTTP " + code + (string.IsNullOrWhiteSpace(reason) ? "" : ": " + reason))
     { StatusCode = code; RetryAfterSeconds = retryAfter; }
     public bool Permanent => (StatusCode >= 300 && StatusCode < 400) || StatusCode is 400 or 401 or 403 or 404 or 413 or 415 or 422 or 423 or 426 or 507;
+    // The CDE no longer accepts this token: revoked, expired or unknown. Only a new connection helps.
+    public bool Revoked => StatusCode == 401 || StatusCode == 403 && Message.Contains("revocada");
+    /// <summary>UI-8 logic 4: the role lost «Ver modelos IFC»; not a revocation, a new token would not help.</summary>
+    public bool NoPermission => StatusCode == 403 && Message.Contains(NoPermissionReason);
+    public const string NoPermissionReason = "Tu rol ya no puede ver modelos IFC";
+    public const string RevokedReason = "Conexión vencida, revocada o sin permiso";
   }
   public interface ISyncReceiver : IDisposable
   {
@@ -57,7 +95,13 @@ namespace OpenProject.Revit.LiveSync.Transport
     Task CommitAsync(string jobId, CancellationToken token);
   }
   public interface ISyncPresence { void SetPaused(bool paused); void Announce(string session); }
-  public sealed class SyncReceiver : ISyncReceiver, ISyncPresence
+  /// <summary>UI-8 logic 5: whether the CDE already closed the real-time channel of this connection.</summary>
+  public interface ISyncRejection { bool ChannelRejected { get; } }
+  // Optional: a CDE announcing "merge" lists the huellas of its revision so only what differs is sent.
+  public interface ISyncFingerprints { Task<RemoteFingerprints> FingerprintsAsync(CancellationToken token); }
+  // Optional: returns the model to the revision its last replacement left as restore point (Administración only).
+  public interface ISyncRestore { Task RestoreAsync(CancellationToken token); }
+  public sealed class SyncReceiver : ISyncReceiver, ISyncPresence, ISyncFingerprints, ISyncRestore, ISyncRejection
   {
     private readonly HttpClient _http;
     private readonly Func<Task> _ensureService;
@@ -65,6 +109,7 @@ namespace OpenProject.Revit.LiveSync.Transport
     private string _publisherSession;
     private string _presenceSession;
     private PublisherFeed _feed;
+    public bool ChannelRejected => _feed?.Rejected == true;
     private bool _paused;
     private volatile bool _gzip;
     public SyncReceiver(Func<Task> ensureService = null, Uri baseAddress = null, CdeDestination destination = null)
@@ -96,6 +141,21 @@ namespace OpenProject.Revit.LiveSync.Transport
         throw new ReceiverException(426);
       _gzip = _destination != null && value.Supports("gzip");
       return value;
+    }
+    public async Task<RemoteFingerprints> FingerprintsAsync(CancellationToken token)
+    {
+      EnsureAccount();
+      using var response = await _http.GetAsync("api/v3/fingerprints", token).ConfigureAwait(false);
+      await Check(response).ConfigureAwait(false);
+      return JsonConvert.DeserializeObject<RemoteFingerprints>(await response.Content.ReadAsStringAsync().ConfigureAwait(false))
+        ?? new RemoteFingerprints();
+    }
+    public async Task RestoreAsync(CancellationToken token)
+    {
+      EnsureAccount();
+      using var content = new StringContent("{}", Encoding.UTF8, "application/json");
+      using var response = await _http.PostAsync("api/v3/restore", content, token).ConfigureAwait(false);
+      await Check(response).ConfigureAwait(false);
     }
     public async Task<RemoteJob> BeginAsync(SyncJob job, CancellationToken token)
     {
