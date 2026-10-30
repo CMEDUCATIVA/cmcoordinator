@@ -341,7 +341,8 @@ namespace OpenProject.Revit.LiveSync.Queue
             {
               // Contract 4: nothing to send. The person is part of the model all the same; what stayed out is listed.
               _joined = true; failures = 0;
-              _publishRequested = outbox.HasPending || _retry != _retryAtJob;
+              // A capture that arrived while preparing is not in the queue yet: the request is still for it.
+              _publishRequested = outbox.HasPending || _retry != _retryAtJob || HasUnsavedCapture;
               _log.Emit("queue", "NOTHING_TO_SEND", "Sin envío: no hay elementos, bajas ni catálogo nuevo");
               Report(outbox, "Al día", "No hay nada nuevo que enviar al CDE", remote);
               await Delay(250).ConfigureAwait(false); continue;
@@ -547,6 +548,7 @@ namespace OpenProject.Revit.LiveSync.Queue
       _log.Emit("transport", "PUBLISHER_WAITING", "Cola conservada; se necesita solicitud manual de publicación");
     }
 
+    private bool HasUnsavedCapture { get { lock (_gate) return _latest != null && _generation != _persisted; } }
     private void SaveLatest(SqliteOutbox outbox, bool duringJob = false)
     {
       LiveSnapshot latest; long generation; bool reconcile;

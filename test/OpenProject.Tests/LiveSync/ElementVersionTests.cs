@@ -507,6 +507,13 @@ namespace OpenProject.Tests.LiveSync
     }
 
     [Fact]
+    public void BothNamesOfARemovalReadAsYourDeletion()
+    {
+      foreach (var aspect in new[] { "removed", "d" })
+        Assert.Equal("No entró: tu borrado", OpenProject.Revit.LiveSync.Presentation.DifferDetail.Versions(new DifferingElement { Id = "W", Aspects = new[] { aspect } }));
+    }
+
+    [Fact]
     public void WithoutNumbersTheDetailNamesTheAspect()
     {
       var item = new DifferingElement { Id = "W", Name = "Muro", Reason = "stale", By = "Juan", Aspects = new[] { "p" } };

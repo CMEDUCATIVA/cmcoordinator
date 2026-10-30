@@ -121,6 +121,8 @@ namespace OpenProject.Revit.LiveSync.Queue
     // Which aspects stayed out: g, p or removed (the deletion of the element).
     public string[] Aspects { get; set; }
     public const string RemovalAspect = "removed";
+    // The same deletion as the element history of the CDE names it.
+    public const string RemovalHistoryAspect = "d";
     // Visible numbers of this copy and of the CDE when they are known (contract 3); an earlier CDE sends none.
     [JsonIgnore] public long? Mine { get; set; }
     [JsonProperty("n")] public long? Theirs { get; set; }

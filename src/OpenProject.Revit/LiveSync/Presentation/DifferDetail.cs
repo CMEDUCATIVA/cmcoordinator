@@ -58,7 +58,7 @@ namespace OpenProject.Revit.LiveSync.Presentation
     public static IReadOnlyList<string> Lines(DifferingElement item) =>
       new[] { Versions(item), Who(item), When(item), Reason(item) }.Where(line => line != null).ToList();
 
-    private static bool IsRemoval(DifferingElement item) => item.Aspects?.Contains(DifferingElement.RemovalAspect) == true;
+    private static bool IsRemoval(DifferingElement item) => item.Aspects?.Any(aspect => aspect is DifferingElement.RemovalAspect or DifferingElement.RemovalHistoryAspect) == true;
     private static string Aspect(DifferingElement item)
     {
       if (item.Aspects == null || IsRemoval(item)) return IsRemoval(item) ? "tu borrado" : null;
