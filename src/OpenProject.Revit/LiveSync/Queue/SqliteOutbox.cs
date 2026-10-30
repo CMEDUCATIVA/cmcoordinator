@@ -39,7 +39,9 @@ namespace OpenProject.Revit.LiveSync.Queue
           CREATE TABLE IF NOT EXISTS drawing_confirmed (id TEXT PRIMARY KEY,json TEXT NOT NULL,hash TEXT NOT NULL);
           CREATE TABLE IF NOT EXISTS baseline (id TEXT PRIMARY KEY,hash TEXT NOT NULL);");
         EnsureVersions();
+        EnsureVersionColumns();
         MigrateElementHashes();
+        RepairWithheld();
       }
       catch { _db?.Dispose(); _lease.Dispose(); throw; }
     }
@@ -74,7 +76,7 @@ namespace OpenProject.Revit.LiveSync.Queue
       foreach (var id in existing) { Execute("DELETE FROM desired WHERE id=$id", ("$id", id)); changed = true; }
       Set("source", snapshot.SourceId); Set("title", snapshot.Title); Set("view", snapshot.View);
       Set("bim", bimJson); Set("documentId", snapshot.DocumentId); Set("legacySourceId", snapshot.LegacySourceId);
-      if (changed) Set("dirty", "1");
+      if (changed) { Set("dirty", "1"); ForgetReverted(); }
       var drawingsChanged = snapshot.Drawings != null && SaveDrawings(snapshot.Drawings);
       if (drawingsChanged) Set("drawingsDirty", "1");
       transaction.Commit();
@@ -121,8 +123,8 @@ namespace OpenProject.Revit.LiveSync.Queue
         if (!HasPending) return 0;
         var table = Active == null ? "confirmed" : "target";
         using var cmd = Command($@"SELECT
-          (SELECT count(*) FROM desired d LEFT JOIN {table} t ON d.id=t.id WHERE t.id IS NULL OR t.hash<>d.hash) +
-          (SELECT count(*) FROM {table} t LEFT JOIN desired d ON t.id=d.id WHERE d.id IS NULL)");
+          (SELECT count(*) FROM desired d LEFT JOIN {table} t ON d.id=t.id WHERE (t.id IS NULL OR t.hash<>d.hash) AND d.id NOT IN (SELECT id FROM differs WHERE hash=d.hash)) +
+          (SELECT count(*) FROM {table} t LEFT JOIN desired d ON t.id=d.id WHERE d.id IS NULL AND t.id NOT IN (SELECT id FROM differs))");
         return Convert.ToInt32(cmd.ExecuteScalar());
       }
     }
@@ -172,7 +174,7 @@ namespace OpenProject.Revit.LiveSync.Queue
     public SyncJob Prepare(string sessionId, long startedAt, string baseRevision, bool reset,
       Action<int, int, long> progress = null, bool compact = false, bool drawings = false,
       bool merge = false, IReadOnlyDictionary<string, string> remote = null, IReadOnlyCollection<string> gone = null,
-      string remoteCatalog = null, VersionPlan versions = null)
+      string remoteCatalog = null, VersionPlan versions = null, string revitVersion = null)
     {
       var jobId = Guid.NewGuid().ToString("N");
       History(jobId, "Preparando paquetes", "Agrupando la revisión sin cargar el modelo completo en memoria");
@@ -215,7 +217,8 @@ namespace OpenProject.Revit.LiveSync.Queue
       var job = new SyncJob { JobId = jobId, SessionId = sessionId, SessionStartedAt = startedAt,
         SourceId = Get("source"), DocumentId = Get("documentId"), LegacySourceId = Get("legacySourceId"),
         Title = Get("title"), View = Get("view"), Sequence = sequence,
-        BaseRevision = baseRevision, Reset = reset, Merge = merge && !reset ? true : null };
+        BaseRevision = baseRevision, Reset = reset, Merge = merge && !reset ? true : null,
+        RevitVersion = string.IsNullOrEmpty(revitVersion) ? null : revitVersion };
       using var digest = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
       const string differsFromRemote = "FROM target t LEFT JOIN remote r ON t.id=r.id WHERE r.id IS NULL OR (r.hash<>substr(t.hash,1,16) AND r.hash<>substr(t.hash,17,16))";
       const string differsFromConfirmed = "FROM target t LEFT JOIN confirmed c ON t.id=c.id WHERE c.id IS NULL OR c.hash<>t.hash";
@@ -251,8 +254,7 @@ namespace OpenProject.Revit.LiveSync.Queue
       // UI-8 logic 9: the catalog (some 650 KB) travels only when it changed; a merge with the same one leaves it out.
       var catalog = Get("bim") ?? "null";
       job.CatalogHash = SyncEncoding.Hash(catalog);
-      // A job always has one part at least: with nothing else to send, the catalog goes.
-      if (reset || !merge || remoteCatalog != job.CatalogHash || updatedTotal + removed.Count == 0) Store("{\"protocol\":3,\"kind\":\"catalog\",\"bim\":" + catalog + "}");
+      if (reset || !merge || remoteCatalog != job.CatalogHash) Store("{\"protocol\":3,\"kind\":\"catalog\",\"bim\":" + catalog + "}");
       progress?.Invoke(0, preparationTotal, totalBytes);
       const string prefix = "{\"protocol\":3,\"kind\":\"elements\",\"updated\":[";
       const string tableKey = "],\"geometries\":";
@@ -281,7 +283,7 @@ namespace OpenProject.Revit.LiveSync.Queue
         var print = hash.Substring(0, FingerprintLength);
         // UI-8 logic 8: decided on the element as captured, before its shapes are shared.
         object entry = null; var force = false;
-        if (versioned && (entry = PlanElement(versions, id, json, out force)) == null) return;
+        if (versioned && (entry = PlanElement(versions, id, json, hash, out force)) == null) return;
         IReadOnlyList<string> fresh = Array.Empty<string>(), used = Array.Empty<string>();
         if (compactor != null) json = compactor.Compact(json, out fresh, out used);
         var printBytes = Encoding.UTF8.GetByteCount(JsonConvert.ToString(id)) + FingerprintLength + 4 + (versioned ? 64 : 0);
@@ -315,13 +317,19 @@ namespace OpenProject.Revit.LiveSync.Queue
           (versioned ? ",\"bases\":" + JsonConvert.SerializeObject(slice.ToDictionary(id => id, id => removedBases[id])) : "") + "}");
         progress?.Invoke(updatedCount + Math.Min(offset + removedPerPart, removed.Count), preparationTotal, totalBytes);
       }
-      // Everything predicted out and nothing else to send: the catalog keeps the job valid.
-      if (partIndex == 0) Store("{\"protocol\":3,\"kind\":\"catalog\",\"bim\":" + catalog + "}");
       var drawingCount = drawings ? StoreDrawings(reset, Store) : 0;
+      // Contract 4: no elements, no removals, no new catalog and no drawings: there is no job. What was predicted out stays listed.
+      if (partIndex == 0)
+      {
+        FinishWithoutJob(jobId, versions);
+        transaction.Commit();
+        return null;
+      }
       progress?.Invoke(preparationTotal, preparationTotal, totalBytes);
       job.ByteLength = totalBytes; job.ChunkCount = partIndex;
       job.PayloadHash = NetCompat.Hex(digest.GetHashAndReset());
       Set("sequence", sequence.ToString()); Set("job", SyncEncoding.Json(job)); Set("dirty", "0");
+      Set("jobWithheld", versioned && versions.Withheld.Count > 0 ? JsonConvert.SerializeObject(versions.Withheld) : null);
       Set("forceReset", null);
       Set("jobDrawings", drawings ? "1" : null);
       if (drawings) Set("drawingsDirty", "0");
@@ -381,10 +389,11 @@ namespace OpenProject.Revit.LiveSync.Queue
         return Convert.ToInt64(cmd.ExecuteScalar());
       }
     }
-    public void Complete(SyncJob job)
+    public void Complete(SyncJob job, CommitResult result = null)
     {
       using var transaction = _db.BeginTransaction();
-      Execute("DELETE FROM confirmed; INSERT INTO confirmed SELECT * FROM target; DELETE FROM target; DELETE FROM chunks;");
+      ApplyResult(result);
+      ConfirmTarget(result);
       if (Get("jobDrawings") == "1")
         Execute("DELETE FROM drawing_confirmed; INSERT INTO drawing_confirmed SELECT * FROM drawing_target; DELETE FROM drawing_target;");
       Set("jobDrawings", null);
@@ -398,7 +407,7 @@ namespace OpenProject.Revit.LiveSync.Queue
       using var transaction = _db.BeginTransaction();
       var active = Active;
       if (active != null) History(active.JobId, "Reconciliado", reason);
-      Set("job", null); Set("dirty", "1");
+      Set("job", null); Set("dirty", "1"); Set("jobWithheld", null);
       Set("forceReset", "1");
       if (Get("jobDrawings") == "1") Set("drawingsDirty", "1");
       Set("jobDrawings", null);

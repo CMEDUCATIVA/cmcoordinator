@@ -25,6 +25,9 @@ namespace OpenProject.Revit.LiveSync.Queue
     // UI-8 logic 9: hash of the BIM catalog of this capture; a merge leaves the catalog out when the CDE has the same one.
     [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
     public string CatalogHash { get; set; }
+    // Contract 2: the Revit that sends this job (for instance "2027").
+    [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+    public string RevitVersion { get; set; }
     public long Sequence { get; set; }
     public long ByteLength { get; set; }
     public int ChunkCount { get; set; }
@@ -115,12 +118,29 @@ namespace OpenProject.Revit.LiveSync.Queue
     public string At { get; set; }
     // Only one aspect stayed out; the rest of the change entered.
     public bool Partial { get; set; }
+    // Which aspects stayed out: g, p or removed (the deletion of the element).
+    public string[] Aspects { get; set; }
+    public const string RemovalAspect = "removed";
+    // Visible numbers of this copy and of the CDE when they are known (contract 3); an earlier CDE sends none.
+    [JsonIgnore] public long? Mine { get; set; }
+    [JsonProperty("n")] public long? Theirs { get; set; }
+    // The hash of the change that stayed out; empty for a removal.
+    [JsonIgnore] public string Attempt { get; set; }
+  }
+
+  /// <summary>Contract 1: the old huella of an element in the CDE and the one that replaces it.</summary>
+  public sealed class PrintUpgrade
+  {
+    [JsonProperty("old")] public string Old { get; set; }
+    [JsonProperty("new")] public string New { get; set; }
   }
 
   /// <summary>What the CDE answered to a commit: the new version of what entered and what stayed out.</summary>
   public sealed class CommitResult
   {
     public Dictionary<string, long[]> Versions { get; set; } = new();
+    // Contract 3: the visible number of what entered; earlier servers omit it.
+    public Dictionary<string, long?> VersionNumbers { get; set; }
     public List<DifferingElement> Rejected { get; set; } = new();
     public int RejectedCount { get; set; }
     public int ForcedCount { get; set; }

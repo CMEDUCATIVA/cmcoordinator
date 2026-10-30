@@ -63,6 +63,9 @@ namespace OpenProject.Revit.LiveSync.Queue
     public const string CatalogReuseFeature = "catalogReuse";
     // UI-8 logic 8: the CDE versions each element and answers what stayed out.
     public const string ElementVersionsFeature = "elementVersions";
+    // Contract 1: the CDE accepts replacing the old huellas of its elements.
+    public const string PrintUpgradeFeature = "printUpgrade";
+    private const int PrintUpgradeBatch = 2000;
     public const string NoPermissionDetail = "Tu rol ya no puede ver modelos IFC en este proyecto. Pídeselo a quien administre el proyecto; cuando lo tengas, seguirá sola. Tus cambios quedan guardados en este equipo.";
     public const string RevokedDetail = "El CDE ya no acepta esta conexión: Administración la revocó o venció su token. Lo publicado se conserva en el CDE y tus cambios quedan guardados en este equipo.";
     private volatile bool _revoked;
@@ -300,6 +303,7 @@ namespace OpenProject.Revit.LiveSync.Queue
               prints = remotePrints.Fingerprints ?? new Dictionary<string, string>();
               gone = remotePrints.Removed;
               if (remote.Supports(ElementVersionsFeature)) outbox.ResolveKnown(remotePrints);
+              await UpgradePrintsAsync(outbox, remote, remotePrints).ConfigureAwait(false);
               // A queue that never published sends what differs from the CDE: when that is nearly everything, ask first.
               // With a starting point nothing old is sent, so there is nothing to confirm (UI-8 logic 8).
               if (!_fullMergeConfirmed && outbox.Get("revision") == null && !outbox.HasBaseline)
@@ -315,22 +319,39 @@ namespace OpenProject.Revit.LiveSync.Queue
                 }
               }
             }
+            // This Revit published last, so its huellas are not read for the merge; another Revit may have upgraded those of its old copies.
+            else if (merging && !reset && ownRevision && remote.Supports(ElementVersionsFeature) && outbox.HasOldCopies && _receiver is ISyncFingerprints own)
+            {
+              var current = await own.FingerprintsAsync(_cancel.Token).ConfigureAwait(false);
+              outbox.ResolveKnown(current);
+              await UpgradePrintsAsync(outbox, remote, current).ConfigureAwait(false);
+            }
             Report(outbox, "Preparando paquetes", "Agrupando elementos en paquetes reanudables", remote);
             _retryAtJob = _retry;
             _preparing = true;
             var plan = merging && !reset && remote.Supports(ElementVersionsFeature)
-              ? new SqliteOutbox.VersionPlan { Remote = remotePrints?.Versions, Authors = remotePrints?.Authors ?? new Dictionary<string, string>(),
+              ? new SqliteOutbox.VersionPlan { Remote = remotePrints?.Versions, Authors = remotePrints?.Authors ?? new Dictionary<string, string>(), Times = remotePrints?.VersionTimes ?? new Dictionary<string, string>(),
                   Gone = new HashSet<string>(gone ?? Array.Empty<string>()), CanForce = CdeModelAccess.From(remote).Level == "admin" }
               : null;
             try { job = outbox.Prepare(_session, _started, remote.RevisionId, reset, ReportPreparation, compact: remote.Supports("sharedGeometry"), drawings: remote.Supports(DrawingsFeature),
-              merge: merging && !reset, remote: prints, gone: gone, remoteCatalog: remote.Supports(CatalogReuseFeature) ? remote.CatalogHash : null, versions: plan); }
+              merge: merging && !reset, remote: prints, gone: gone, remoteCatalog: remote.Supports(CatalogReuseFeature) ? remote.CatalogHash : null, versions: plan, revitVersion: Entry.RibbonButtonClickHandler.RevitVersion); }
             finally { _preparing = false; }
             if (reset) _replace = false;
+            if (job == null)
+            {
+              // Contract 4: nothing to send. The person is part of the model all the same; what stayed out is listed.
+              _joined = true; failures = 0;
+              _publishRequested = outbox.HasPending || _retry != _retryAtJob;
+              _log.Emit("queue", "NOTHING_TO_SEND", "Sin envío: no hay elementos, bajas ni catálogo nuevo");
+              Report(outbox, "Al día", "No hay nada nuevo que enviar al CDE", remote);
+              await Delay(250).ConfigureAwait(false); continue;
+            }
             _log.Emit("queue", "JOB_PREPARED", job.Reset ? "Trabajo preparado · captura completa" : job.Merge == true ? "Trabajo preparado · fusionar" : "Trabajo preparado", job.JobId, bytes: job.ByteLength);
           }
           if (job == null)
           {
             _publishRequested = false;
+            _joined |= merging;
             Report(outbox, "Al día", "La revisión vigente está guardada en el CDE", remote);
             await Delay(250).ConfigureAwait(false); continue;
           }
@@ -369,10 +390,9 @@ namespace OpenProject.Revit.LiveSync.Queue
             try { await _receiver.CommitAsync(job.JobId, _cancel.Token).ConfigureAwait(false); }
             finally { _inFlight = false; }
           }
-          outbox.Complete(job);
           // UI-8 logic 8: what entered takes its new version; what stayed out is listed until it matches the CDE again.
           var result = (_receiver as ISyncCommitResult)?.TakeCommit(job.JobId);
-          outbox.ApplyCommit(result);
+          outbox.Complete(job, result);
           if (result?.RejectedCount > 0)
             _log.Emit("transport", "CHANGES_REJECTED", $"{result.RejectedCount:N0} cambios no entraron: partían de una versión anterior a la del CDE", job.JobId);
           _joined = true;
@@ -482,11 +502,35 @@ namespace OpenProject.Revit.LiveSync.Queue
       // UI-8 logic 8: the version each element of this Revit starts from is fixed as soon as it is known.
       if (remote.Supports(ElementVersionsFeature) && outbox.ResolveKnown(prints) > 0)
         _log.Emit("queue", "VERSIONS_KNOWN", "Versiones de partida de los elementos tomadas del CDE");
+      await UpgradePrintsAsync(outbox, remote, prints).ConfigureAwait(false);
       var compared = Compare(outbox, remote, prints);
       _comparison = compared; _compared = true;
       _log.Emit("transport", "MODEL_COMPARED", compared.Compared
         ? $"Comparado con el CDE al conectar: {compared.Unchanged:N0} iguales · +{compared.Added:N0} · {compared.Changed:N0} cambiados · −{compared.Removed:N0}"
         : $"Modelo del CDE con {compared.RemoteCount:N0} elementos; aún no hay captura local con la que comparar");
+    }
+    // Contract 1: elements this Revit recognizes by their old huella get the huella every Revit year computes. The CDE changes
+    // no version, so nothing here decides what is sent: a failure only leaves it for the next reading.
+    private async Task UpgradePrintsAsync(SqliteOutbox outbox, ReceiverStatus remote, RemoteFingerprints prints)
+    {
+      if (!remote.Supports(PrintUpgradeFeature) || _receiver is not ISyncPrintUpgrade upgrader || CdeModelAccess.From(remote).ReadOnly) return;
+      var upgrades = outbox.PrintUpgrades(prints?.Fingerprints);
+      if (upgrades.Count == 0) return;
+      try
+      {
+        var upgraded = 0;
+        foreach (var batch in upgrades.Select((pair, index) => (pair, index)).GroupBy(item => item.index / PrintUpgradeBatch))
+        {
+          using var limit = CancellationTokenSource.CreateLinkedTokenSource(_cancel.Token);
+          limit.CancelAfter(TimeSpan.FromSeconds(30));
+          upgraded += await upgrader.UpgradePrintsAsync(batch.ToDictionary(item => item.pair.Key, item => item.pair.Value), limit.Token).ConfigureAwait(false);
+        }
+        _log.Emit("transport", "PRINTS_UPGRADED", $"Huellas actualizadas en el CDE: {upgraded:N0} de {upgrades.Count:N0}");
+      }
+      catch (Exception error) when (error is not OperationCanceledException || !_cancel.IsCancellationRequested)
+      {
+        _log.Emit("transport", "PRINT_UPGRADE_FAILED", "No se pudieron actualizar las huellas; la sincronización sigue: " + SyncFailure.Describe(error));
+      }
     }
     private void RecordBaseline(SqliteOutbox outbox)
     {

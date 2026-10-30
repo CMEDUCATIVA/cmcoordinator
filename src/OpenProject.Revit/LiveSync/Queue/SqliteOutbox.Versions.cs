@@ -20,6 +20,18 @@ namespace OpenProject.Revit.LiveSync.Queue
       CREATE TABLE IF NOT EXISTS differs (id TEXT PRIMARY KEY,name TEXT,reason TEXT,who TEXT,at TEXT,partial INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE IF NOT EXISTS forced (id TEXT PRIMARY KEY);");
 
+    private void EnsureVersionColumns()
+    {
+      EnsureColumn("known", "n", "INTEGER");
+      foreach (var (name, type) in new[] { ("hash", "TEXT"), ("aspects", "TEXT"), ("mine", "INTEGER"), ("theirs", "INTEGER") }) EnsureColumn("differs", name, type);
+    }
+    private void EnsureColumn(string table, string column, string type)
+    {
+      using (var cmd = Command($"SELECT count(*) FROM pragma_table_info('{table}') WHERE name=$name", ("$name", column)))
+        if (Convert.ToInt32(cmd.ExecuteScalar()) > 0) return;
+      Execute($"ALTER TABLE {table} ADD COLUMN {column} {type}");
+    }
+
     // Parameters a newer Revit adds to the same element: they say nothing about whether it changed.
     private static readonly HashSet<string> VersionOnlyProperties = new(StringComparer.Ordinal) { "Alojado" };
 
@@ -158,7 +170,9 @@ namespace OpenProject.Revit.LiveSync.Queue
         if (!hasVersion && !remote.ContainsKey(id)) continue;
         var same = remote.TryGetValue(id, out var print) && SamePrint(print, reference);
         if (old && !same) continue;
-        SetKnown(id, same ? (hasVersion ? version[0] ?? 0 : 0) : -1, same ? (hasVersion ? version[1] ?? 0 : 0) : -1); resolved++;
+        SetKnown(id, same ? (hasVersion ? version[0] ?? 0 : 0) : -1, same ? (hasVersion ? version[1] ?? 0 : 0) : -1, same ? Number(version) : null); resolved++;
+        // The change kept out for starting from an old copy can enter now: this copy is the CDE's. It goes with the next send.
+        if (old && same && Execute("DELETE FROM differs WHERE id=$id", ("$id", id)) > 0) Set("dirty", "1");
       }
       var matching = new List<string>();
       using (var cmd = Command("SELECT d.id,d.hash FROM differs x JOIN desired d ON x.id=d.id"))
@@ -169,46 +183,182 @@ namespace OpenProject.Revit.LiveSync.Queue
       foreach (var id in matching)
       {
         Execute("DELETE FROM differs WHERE id=$id", ("$id", id));
-        if (prints.Versions.TryGetValue(id, out var version) && version?.Length >= 2) SetKnown(id, version[0] ?? 0, version[1] ?? 0);
+        if (prints.Versions.TryGetValue(id, out var version) && version?.Length >= 2) SetKnown(id, version[0] ?? 0, version[1] ?? 0, Number(version));
       }
+      RefreshDiffering(prints, remote);
+      RefreshNumbers(prints);
       transaction.Commit();
       return resolved;
     }
 
-    private void SetKnown(string id, long g, long p) =>
-      Execute("INSERT OR REPLACE INTO known VALUES($id,$g,$p)", ("$id", id), ("$g", g), ("$p", p));
+    // Position 5 of a version entry: the visible number of the element. Servers that do not send it leave it unknown.
+    private static long? Number(long?[] version) => version?.Length > 5 ? version[5] : null;
+
+    // The list says what the CDE has now; a removal kept out is over once the CDE no longer has the element either.
+    private void RefreshDiffering(RemoteFingerprints prints, IReadOnlyDictionary<string, string> remote)
+    {
+      var rows = new List<(string Id, bool Local)>();
+      using (var cmd = Command("SELECT x.id,d.id IS NOT NULL FROM differs x LEFT JOIN desired d ON x.id=d.id"))
+      using (var reader = cmd.ExecuteReader()) while (reader.Read()) rows.Add((reader.GetString(0), reader.GetBoolean(1)));
+      foreach (var (id, local) in rows)
+      {
+        var hasVersion = prints.Versions.TryGetValue(id, out var version) && version?.Length >= 2;
+        if (!local && !hasVersion && !remote.ContainsKey(id)) { Execute("DELETE FROM differs WHERE id=$id", ("$id", id)); continue; }
+        if (!hasVersion) continue;
+        string by = null;
+        if (version.Length > 2 && version[2] is { } author) prints.Authors?.TryGetValue(author.ToString(CultureInfo.InvariantCulture), out by);
+        string at = null;
+        prints.VersionTimes?.TryGetValue(id, out at);
+        Execute("UPDATE differs SET theirs=COALESCE($n,theirs),who=COALESCE($by,who),at=COALESCE($at,at) WHERE id=$id", ("$id", id), ("$n", Number(version)), ("$by", by), ("$at", at));
+      }
+    }
+
+    // A version this Revit already holds gets its number as soon as the CDE sends it.
+    private void RefreshNumbers(RemoteFingerprints prints)
+    {
+      var rows = new List<(string Id, long G, long P)>();
+      using (var cmd = Command("SELECT id,vg,vp FROM known"))
+      using (var reader = cmd.ExecuteReader()) while (reader.Read()) rows.Add((reader.GetString(0), reader.GetInt64(1), reader.GetInt64(2)));
+      foreach (var (id, g, p) in rows)
+        if (prints.Versions.TryGetValue(id, out var version) && Number(version) is { } number && (version[0] ?? 0) == g && (version[1] ?? 0) == p)
+          Execute("UPDATE known SET n=$n WHERE id=$id AND (n IS NULL OR n<>$n)", ("$id", id), ("$n", number));
+    }
+
+    /// <summary>
+    /// Contract 1: the elements whose CDE huella is the old one (start of the exact hash) and their semantic huella. Only the
+    /// Revit that holds the same bytes can see it, and that proves both describe the same element.
+    /// </summary>
+    public Dictionary<string, PrintUpgrade> PrintUpgrades(IReadOnlyDictionary<string, string> remote)
+    {
+      var upgrades = new Dictionary<string, PrintUpgrade>(StringComparer.Ordinal);
+      if (remote == null || remote.Count == 0) return upgrades;
+      foreach (var table in new[] { "desired", "confirmed", "baseline" })
+      {
+        using var cmd = Command($"SELECT id,hash FROM {table}");
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+        {
+          var id = reader.GetString(0); var hash = reader.GetString(1);
+          if (upgrades.ContainsKey(id) || hash.Length < 2 * FingerprintLength || !remote.TryGetValue(id, out var print)) continue;
+          var semantic = hash.Substring(0, FingerprintLength);
+          if (print != semantic && print == hash.Substring(FingerprintLength, FingerprintLength)) upgrades[id] = new PrintUpgrade { Old = print, New = semantic };
+        }
+      }
+      return upgrades;
+    }
+
+    /// <summary>Whether some element of this Revit still starts from an old copy of the CDE's (known -1).</summary>
+    public bool HasOldCopies { get { using var cmd = Command("SELECT EXISTS(SELECT 1 FROM known WHERE vg=-1)"); return Convert.ToInt32(cmd.ExecuteScalar()) == 1; } }
+
+    private void SetKnown(string id, long g, long p, long? n = null) =>
+      Execute("INSERT OR REPLACE INTO known(id,vg,vp,n) VALUES($id,$g,$p,$n)", ("$id", id), ("$g", g), ("$p", p), ("$n", n));
 
     /// <summary>What entered takes its new version and stops differing; what stayed out is listed with its reason.</summary>
     public void ApplyCommit(CommitResult result)
     {
       if (result == null) return;
       using var transaction = _db.BeginTransaction();
-      foreach (var pair in result.Versions ?? new Dictionary<string, long[]>())
-      {
-        if (pair.Value == null || pair.Value.Length < 2) continue;
-        SetKnown(pair.Key, pair.Value[0], pair.Value[1]);
-        Execute("DELETE FROM differs WHERE id=$id; DELETE FROM forced WHERE id=$id", ("$id", pair.Key));
-      }
-      foreach (var item in result.Rejected ?? new List<DifferingElement>()) AddDiffering(item);
+      ApplyResult(result);
       transaction.Commit();
     }
 
+    private void ApplyResult(CommitResult result)
+    {
+      if (result == null) return;
+      foreach (var pair in result.Versions ?? new Dictionary<string, long[]>())
+      {
+        if (pair.Value == null || pair.Value.Length < 2) continue;
+        long? number = null;
+        result.VersionNumbers?.TryGetValue(pair.Key, out number);
+        SetKnown(pair.Key, pair.Value[0], pair.Value[1], number);
+        Execute("DELETE FROM differs WHERE id=$id; DELETE FROM forced WHERE id=$id", ("$id", pair.Key));
+      }
+      foreach (var item in result.Rejected ?? new List<DifferingElement>())
+      {
+        // Only what was really sent counts as attempted: a newer capture may already be waiting in the queue.
+        item.Attempt ??= HashOf("target", item.Id) ?? HashOf("desired", item.Id) ?? "";
+        item.Name ??= NameIn("target", item.Id) ?? NameIn("confirmed", item.Id);
+        item.Mine ??= KnownNumber(item.Id);
+        AddDiffering(item);
+      }
+    }
+
+    private string HashOf(string table, string id) { using var cmd = Command($"SELECT hash FROM {table} WHERE id=$id", ("$id", id)); return cmd.ExecuteScalar() as string; }
+    private long? KnownNumber(string id) { using var cmd = Command("SELECT n FROM known WHERE id=$id", ("$id", id)); return cmd.ExecuteScalar() is long n ? n : null; }
+    private string NameIn(string table, string id)
+    {
+      using var cmd = Command($"SELECT json FROM {table} WHERE id=$id", ("$id", id));
+      if (cmd.ExecuteScalar() is not string json) return null;
+      try { return JObject.Parse(json).Value<string>("name"); } catch (JsonException) { return null; }
+    }
+
+    // F3: what stayed out did not reach the CDE, so it is not this Revit's confirmed state. Its row keeps what the CDE really
+    // received from here: the change is still a change, its reference is still true and it can be sent when it can enter.
+    private void ConfirmTarget(CommitResult result)
+    {
+      var kept = new HashSet<string>(result?.Rejected?.Select(item => item.Id) ?? Enumerable.Empty<string>());
+      var withheld = Get("jobWithheld");
+      if (withheld != null) kept.UnionWith(JsonConvert.DeserializeObject<List<string>>(withheld));
+      Execute("CREATE TEMP TABLE IF NOT EXISTS kept (id TEXT PRIMARY KEY); DELETE FROM kept;");
+      foreach (var id in kept) Execute("INSERT OR IGNORE INTO kept VALUES($id)", ("$id", id));
+      Execute(@"DELETE FROM confirmed WHERE id NOT IN (SELECT id FROM kept);
+        INSERT OR REPLACE INTO confirmed SELECT * FROM target WHERE id NOT IN (SELECT id FROM kept);
+        DELETE FROM target; DELETE FROM chunks;");
+      Set("jobWithheld", null);
+    }
+
+    // Queues from before F3 hold in `confirmed` changes that stayed out: their reference falls back to the starting point.
+    private void RepairWithheld()
+    {
+      if (Get("withheldFormat") == "1") return;
+      using var transaction = _db.BeginTransaction();
+      Execute(@"DELETE FROM confirmed WHERE id IN (SELECT id FROM differs WHERE hash IS NULL);
+        UPDATE differs SET hash=COALESCE((SELECT d.hash FROM desired d WHERE d.id=differs.id),'') WHERE hash IS NULL;");
+      Set("withheldFormat", "1");
+      transaction.Commit();
+    }
+
+    // An edit undone is no longer a change that stayed out. The huella compares it: an undone move may not repeat every decimal.
+    private void ForgetReverted()
+    {
+      const string reverted = @"(SELECT x.id FROM differs x JOIN desired d ON x.id=d.id LEFT JOIN confirmed c ON d.id=c.id LEFT JOIN baseline b ON d.id=b.id
+        WHERE x.hash IS NOT NULL AND substr(d.hash,1,16)=substr(COALESCE(c.hash,b.hash),1,16))";
+      Execute($"DELETE FROM forced WHERE id IN {reverted}");
+      Execute($"DELETE FROM differs WHERE id IN {reverted}");
+    }
+
+    // Prepare found nothing to send: no job is left behind and the queue is at rest.
+    private void FinishWithoutJob(string jobId, VersionPlan plan)
+    {
+      Execute("DELETE FROM target; DELETE FROM chunks; DELETE FROM drawing_target;");
+      Set("dirty", "0"); Set("forceReset", null); Set("jobDrawings", null); Set("jobWithheld", null);
+      if (Get("drawingsSupported") == "1") Set("drawingsDirty", "0");
+      var outside = plan?.Withheld.Count ?? 0;
+      if (outside == 0) Execute("DELETE FROM history WHERE id=$id", ("$id", jobId));
+      else History(jobId, NoJobState, (outside == 1 ? "1 elemento no entró" : $"{outside:N0} elementos no entraron") + "; no había nada más que enviar.");
+    }
+    public const string NoJobState = "Sin envío";
+
     private void AddDiffering(DifferingElement item) => Execute(
-      "INSERT OR REPLACE INTO differs VALUES($id,$name,$reason,$who,$at,$partial)", ("$id", item.Id), ("$name", item.Name),
-      ("$reason", item.Reason ?? "stale"), ("$who", item.By), ("$at", item.At), ("$partial", item.Partial ? 1 : 0));
+      "INSERT OR REPLACE INTO differs(id,name,reason,who,at,partial,hash,aspects,mine,theirs) VALUES($id,$name,$reason,$who,$at,$partial,$hash,$aspects,$mine,$theirs)",
+      ("$id", item.Id), ("$name", item.Name), ("$reason", item.Reason ?? "stale"), ("$who", item.By), ("$at", item.At), ("$partial", item.Partial ? 1 : 0),
+      ("$hash", item.Attempt ?? ""), ("$aspects", item.Aspects == null ? null : string.Join(",", item.Aspects)), ("$mine", item.Mine), ("$theirs", item.Theirs));
 
     public IReadOnlyList<DifferingElement> Differs
     {
       get
       {
-        using var cmd = Command("SELECT id,name,reason,who,at,partial FROM differs ORDER BY name,id");
+        using var cmd = Command("SELECT id,name,reason,who,at,partial,aspects,mine,theirs FROM differs ORDER BY name,id");
         using var reader = cmd.ExecuteReader(); var list = new List<DifferingElement>();
         while (reader.Read()) list.Add(new DifferingElement { Id = reader.GetString(0), Name = reader.IsDBNull(1) ? null : reader.GetString(1),
           Reason = reader.IsDBNull(2) ? "stale" : reader.GetString(2), By = reader.IsDBNull(3) ? null : reader.GetString(3),
-          At = reader.IsDBNull(4) ? null : reader.GetString(4), Partial = reader.GetInt32(5) == 1 });
+          At = reader.IsDBNull(4) ? null : reader.GetString(4), Partial = reader.GetInt32(5) == 1,
+          Aspects = reader.IsDBNull(6) ? null : reader.GetString(6).Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries),
+          Mine = reader.IsDBNull(7) ? null : reader.GetInt64(7), Theirs = reader.IsDBNull(8) ? null : reader.GetInt64(8) });
         return list;
       }
     }
+
 
     /// <summary>Administración: the next publication carries these elements with «force» (UI-8 case 17).</summary>
     public int Force(IEnumerable<string> ids)
@@ -226,18 +376,33 @@ namespace OpenProject.Revit.LiveSync.Queue
     {
       public IReadOnlyDictionary<string, long?[]> Remote { get; set; }
       public IReadOnlyDictionary<string, string> Authors { get; set; } = new Dictionary<string, string>();
+      public IReadOnlyDictionary<string, string> Times { get; set; } = new Dictionary<string, string>();
       public ISet<string> Gone { get; set; } = new HashSet<string>();
       public bool CanForce { get; set; }
       internal HashSet<string> Forced { get; } = new();
       internal Dictionary<string, object> PartVersions { get; } = new();
       internal List<string> PartForce { get; } = new();
       internal HashSet<string> Emitted { get; } = new();
+      internal HashSet<string> Withheld { get; } = new();
       internal int Predicted { get; set; }
     }
 
-    // What the element carries ({a, bg, bp}), or null when its change would not enter (it is listed as differing instead).
-    private object PlanElement(VersionPlan plan, string id, string json, out bool forced)
+    // Already listed, with this same change: it is not sent again and again. A stale change is looked at again whenever the
+    // CDE's versions are known, since it may enter now; one the CDE refused for its host or in part waits for a new edit.
+    private bool AlreadyOut(VersionPlan plan, string id, string attempt)
     {
+      using var cmd = Command("SELECT reason,partial,hash FROM differs WHERE id=$id", ("$id", id));
+      using var reader = cmd.ExecuteReader();
+      if (!reader.Read() || reader.IsDBNull(2) || reader.GetString(2) != attempt) return false;
+      if (plan.Remote == null) return true;
+      return reader.GetInt32(1) == 1 || reader.GetString(0) is not ("stale" or "removed");
+    }
+
+    // What the element carries ({a, bg, bp}), or null when its change would not enter (it is listed as differing instead).
+    private object PlanElement(VersionPlan plan, string id, string json, string hash, out bool forced)
+    {
+      forced = plan.CanForce && plan.Forced.Contains(id);
+      if (!forced && AlreadyOut(plan, id, hash)) { plan.Withheld.Add(id); return null; }
       var (g, p) = Aspects(json);
       (string G, string P)? reference = null;
       using (var cmd = Command("SELECT json FROM confirmed WHERE id=$id", ("$id", id)))
@@ -247,33 +412,35 @@ namespace OpenProject.Revit.LiveSync.Queue
         using (var reader = cmd.ExecuteReader()) if (reader.Read()) reference = (reader.GetString(0), reader.GetString(1));
       var changed = reference == null ? "gp" : (g != reference.Value.G ? "g" : "") + (p != reference.Value.P ? "p" : "");
       // Nothing a person edits changed: only what follows the geometry did. Forcing sends the element as it is.
-      if (changed.Length == 0) changed = plan.CanForce && plan.Forced.Contains(id) ? "gp" : "g";
-      long bg = -1, bp = -1;
-      using (var cmd = Command("SELECT vg,vp FROM known WHERE id=$id", ("$id", id)))
-      using (var reader = cmd.ExecuteReader()) if (reader.Read()) { bg = reader.GetInt64(0); bp = reader.GetInt64(1); }
-      forced = plan.CanForce && plan.Forced.Contains(id);
-      if (!forced && Stale(plan, id, changed, bg, bp, json)) return null;
+      if (changed.Length == 0) changed = forced ? "gp" : "g";
+      long bg = -1, bp = -1; long? mine = null;
+      using (var cmd = Command("SELECT vg,vp,n FROM known WHERE id=$id", ("$id", id)))
+      using (var reader = cmd.ExecuteReader()) if (reader.Read()) { bg = reader.GetInt64(0); bp = reader.GetInt64(1); mine = reader.IsDBNull(2) ? null : reader.GetInt64(2); }
+      if (!forced && Stale(plan, id, changed, bg, bp, mine, json, hash)) return null;
       plan.Emitted.Add(id);
       return new { a = changed, bg, bp };
     }
 
     // Case 14: a change from an older version than the CDE's is known before sending; it stays out and is shown.
-    private bool Stale(VersionPlan plan, string id, string changed, long bg, long bp, string json)
+    private bool Stale(VersionPlan plan, string id, string changed, long bg, long bp, long? mine, string json, string hash)
     {
       if (plan.Remote == null) return false;
-      string reason = null; long? author = null;
+      string reason = null; long? author = null; long? theirs = null;
       if (plan.Remote.TryGetValue(id, out var current) && current?.Length >= 2)
       {
         var staleG = changed.Contains("g") && bg < (current[0] ?? 0);
         var staleP = changed.Contains("p") && bp < (current[1] ?? 0);
-        if ((staleG || !changed.Contains("g")) && (staleP || !changed.Contains("p"))) { reason = "stale"; author = current.Length > 2 ? current[2] : null; }
+        if ((staleG || !changed.Contains("g")) && (staleP || !changed.Contains("p"))) { reason = "stale"; author = current.Length > 2 ? current[2] : null; theirs = Number(current); }
       }
       else if (plan.Gone.Contains(id)) reason = "removed";
       if (reason == null) return false;
       string name = null;
       try { name = JObject.Parse(json).Value<string>("name"); } catch (JsonException) { }
       plan.Authors.TryGetValue(author?.ToString() ?? "", out var by);
-      AddDiffering(new DifferingElement { Id = id, Name = name, Reason = reason, By = by });
+      plan.Times.TryGetValue(id, out var at);
+      AddDiffering(new DifferingElement { Id = id, Name = name, Reason = reason, By = by, At = at, Attempt = hash, Mine = mine, Theirs = theirs,
+        Aspects = changed.Select(aspect => aspect.ToString()).ToArray() });
+      plan.Withheld.Add(id);
       plan.Predicted++;
       return true;
     }
@@ -281,23 +448,27 @@ namespace OpenProject.Revit.LiveSync.Queue
     // Removals carry the version they start from; one that the CDE changed meanwhile stays out (case 5).
     private bool PlanRemoval(VersionPlan plan, string id, Dictionary<string, long> bases)
     {
+      var forced = plan.CanForce && plan.Forced.Contains(id);
+      if (!forced && AlreadyOut(plan, id, "")) { plan.Withheld.Add(id); return false; }
       long known = -1;
       using (var cmd = Command("SELECT max(vg,vp) FROM known WHERE id=$id", ("$id", id)))
         if (cmd.ExecuteScalar() is long value) known = value;
       if (plan.Remote != null && plan.Remote.TryGetValue(id, out var current) && current?.Length >= 2 &&
-          known < Math.Max(current[0] ?? 0, current[1] ?? 0) && !(plan.CanForce && plan.Forced.Contains(id)))
+          known < Math.Max(current[0] ?? 0, current[1] ?? 0) && !forced)
       {
-        string name = null;
-        using (var cmd = Command("SELECT json FROM confirmed WHERE id=$id", ("$id", id)))
-          if (cmd.ExecuteScalar() is string json) try { name = JObject.Parse(json).Value<string>("name"); } catch (JsonException) { }
         plan.Authors.TryGetValue((current.Length > 2 ? current[2] : null)?.ToString() ?? "", out var by);
-        AddDiffering(new DifferingElement { Id = id, Name = name, Reason = "stale", By = by });
+        plan.Times.TryGetValue(id, out var at);
+        AddDiffering(new DifferingElement { Id = id, Name = NameIn("confirmed", id), Reason = "stale", By = by, At = at, Attempt = "",
+          Aspects = new[] { DifferingElement.RemovalAspect }, Mine = KnownNumber(id), Theirs = Number(current) });
+        plan.Withheld.Add(id);
         plan.Predicted++;
         return false;
       }
+      Execute("DELETE FROM differs WHERE id=$id", ("$id", id));
       bases[id] = known;
       return true;
     }
+
 
     private void LoadForced(VersionPlan plan)
     {

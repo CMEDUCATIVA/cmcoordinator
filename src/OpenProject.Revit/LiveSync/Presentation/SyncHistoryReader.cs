@@ -44,7 +44,7 @@ namespace OpenProject.Revit.LiveSync.Presentation
       var available = Convert.ToInt32(availableCount.ExecuteScalar());
       var where = " WHERE 1=1";
       if (filter == "En espera") where += " AND id=$active AND state NOT IN ('Reconciliado','Revisión aplicada','Guardado en destino')";
-      if (filter == "Procesados") where += " AND state IN ('Reconciliado','Revisión aplicada','Guardado en destino')";
+      if (filter == "Procesados") where += " AND state IN ('Reconciliado','Revisión aplicada','Guardado en destino','Sin envío')";
       if (!string.IsNullOrWhiteSpace(revision)) where += " AND instr(lower(id),lower($revision))>0";
       if (from.HasValue) where += " AND time >= $from";
       if (to.HasValue) where += " AND time < $to";

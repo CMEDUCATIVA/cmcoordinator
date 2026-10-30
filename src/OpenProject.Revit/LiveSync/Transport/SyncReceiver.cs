@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using OpenProject.Revit.LiveSync.Queue;
 
 namespace OpenProject.Revit.LiveSync.Transport
@@ -62,8 +64,26 @@ namespace OpenProject.Revit.LiveSync.Transport
     public bool Complete { get; set; }
     // UI-8 logic 8: ids removed from the model since its last complete capture (an older CDE sends none).
     public List<string> Removed { get; set; } = new();
-    // UI-8 logic 8 (elementVersions): [geometry, parameters, author id] of each element and the authors' names.
-    public Dictionary<string, long?[]> Versions { get; set; }
+    // UI-8 logic 8 (elementVersions): by position, geometry, parameters, author id, date, host id and number (contract 3)
+    // of each element. Numbers stay in place and what is not a number is null; the date is kept in VersionTimes. Short entries
+    // come from earlier servers.
+    [JsonIgnore] public Dictionary<string, long?[]> Versions { get; set; }
+    [JsonIgnore] public Dictionary<string, string> VersionTimes { get; set; } = new();
+    [JsonProperty("versions")]
+    private JToken VersionsJson
+    {
+      set
+      {
+        if (value is not JObject entries) { Versions = null; return; }
+        Versions = new Dictionary<string, long?[]>();
+        foreach (var entry in entries.Properties())
+        {
+          if (entry.Value is not JArray items) continue;
+          Versions[entry.Name] = items.Select(item => item.Type is JTokenType.Integer or JTokenType.Float ? item.Value<long?>() : null).ToArray();
+          if (items.Count > 3 && items[3].Type is JTokenType.String or JTokenType.Date) VersionTimes[entry.Name] = items[3].ToString(Formatting.None).Trim('"');
+        }
+      }
+    }
     public Dictionary<string, string> Authors { get; set; } = new();
   }
   public sealed class RemoteJob
@@ -104,9 +124,11 @@ namespace OpenProject.Revit.LiveSync.Transport
   public interface ISyncFingerprints { Task<RemoteFingerprints> FingerprintsAsync(CancellationToken token); }
   // Optional: returns the model to the revision its last replacement left as restore point (Administración only).
   public interface ISyncRestore { Task RestoreAsync(CancellationToken token); }
+  // Optional (feature printUpgrade): replaces old huellas in the CDE without new versions or activity. Answers how many changed.
+  public interface ISyncPrintUpgrade { Task<int> UpgradePrintsAsync(IReadOnlyDictionary<string, PrintUpgrade> upgrades, CancellationToken token); }
   // Optional: a CDE with element versions answers each commit with what entered and what stayed out (UI-8 logic 8).
   public interface ISyncCommitResult { CommitResult TakeCommit(string jobId); }
-  public sealed class SyncReceiver : ISyncReceiver, ISyncPresence, ISyncFingerprints, ISyncRestore, ISyncRejection, ISyncCommitResult
+  public sealed class SyncReceiver : ISyncReceiver, ISyncPresence, ISyncFingerprints, ISyncRestore, ISyncRejection, ISyncCommitResult, ISyncPrintUpgrade
   {
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, CommitResult> _commits = new();
     public CommitResult TakeCommit(string jobId) => _commits.TryRemove(jobId ?? "", out var result) ? result : null;
@@ -156,6 +178,16 @@ namespace OpenProject.Revit.LiveSync.Transport
       await Check(response).ConfigureAwait(false);
       return JsonConvert.DeserializeObject<RemoteFingerprints>(await response.Content.ReadAsStringAsync().ConfigureAwait(false))
         ?? new RemoteFingerprints();
+    }
+    public const string PrintUpgradeRoute = "api/v3/fingerprints/upgrade";
+    public async Task<int> UpgradePrintsAsync(IReadOnlyDictionary<string, PrintUpgrade> upgrades, CancellationToken token)
+    {
+      EnsureAccount();
+      using var content = new StringContent(JsonConvert.SerializeObject(new { fingerprints = upgrades }), Encoding.UTF8, "application/json");
+      using var response = await _http.PostAsync(PrintUpgradeRoute, content, token).ConfigureAwait(false);
+      await Check(response).ConfigureAwait(false);
+      var body = response.Content == null ? "" : await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+      return string.IsNullOrWhiteSpace(body) ? 0 : JObject.Parse(body).Value<int?>("upgraded") ?? 0;
     }
     public async Task RestoreAsync(CancellationToken token)
     {
