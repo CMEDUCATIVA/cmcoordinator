@@ -29,7 +29,8 @@ namespace OpenProject.Revit.LiveSync.Bim
             case StorageType.Integer: item.Value = parameter.AsInteger(); break;
             case StorageType.Double:
               var raw = parameter.AsDouble();
-              if (!NetCompat.IsFinite(raw)) throw new InvalidOperationException("Un parámetro contiene un número no finito.");
+              // Revit gives infinite or NaN for some calculated values (a pipe without flow): that value is left out, the model goes on.
+              if (!NetCompat.IsFinite(raw)) continue;
               item.Value = raw;
               var spec = item.SpecId ?? "";
               if (spec.Contains(":length-")) item.SiValue = raw * 0.3048;
