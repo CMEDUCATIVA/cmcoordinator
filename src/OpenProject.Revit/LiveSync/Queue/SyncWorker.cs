@@ -351,7 +351,8 @@ namespace OpenProject.Revit.LiveSync.Queue
           }
           if (job == null)
           {
-            _publishRequested = false;
+            // A capture that arrived after this turn saved the queue is what the request is for.
+            _publishRequested = HasUnsavedCapture;
             _joined |= merging;
             Report(outbox, "Al día", "La revisión vigente está guardada en el CDE", remote);
             await Delay(250).ConfigureAwait(false); continue;
