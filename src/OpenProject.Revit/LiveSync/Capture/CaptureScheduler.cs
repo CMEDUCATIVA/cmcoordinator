@@ -44,21 +44,55 @@ namespace OpenProject.Revit.LiveSync.Capture
     public void Changed(DocumentChangedEventArgs args)
     {
       var document = args.GetDocument();
-      if (!Equals(document, _document)) { if (_links.Contains(document)) RequestFull(); return; }
+      if (!Equals(document, _document)) { if (_links.Contains(document)) RequestFull("cambió un modelo vinculado"); return; }
       _lastChange = DateTime.UtcNow;
       if (_queue.Count == 0) _firstChange = _lastChange;
       _visibilityDirty = true;
       if (Stopped) { _full = true; return; }
+      // Only what a change affects is read again: placing a column also touches its type and often the view, and reading
+      // the whole model for that took a minute. A complete capture is kept for links and the project's location.
       foreach (var id in args.GetAddedElementIds().Concat(args.GetModifiedElementIds()))
       {
-        if (document.GetElement(id) is ElementType or Material or View or RevitLinkInstance or Level or Phase or ProjectInfo or ProjectLocation) _full = true;
-        Enqueue(id);
+        switch (document.GetElement(id))
+        {
+          case RevitLinkInstance or ProjectLocation or ProjectInfo: RequestFull("cambió un vínculo o la ubicación del proyecto"); break;
+          case View view: if (view.Id == _view.Id) EnqueueVisibilityChanges(); break;
+          case ElementType: EnqueueUsers(element => element.GetTypeId() == id); break;
+          case Material: EnqueueUsers(element => UsesMaterial(element, id)); break;
+          case Level: EnqueueUsers(element => element.LevelId == id); break;
+          case Phase: EnqueueUsers(element => element.CreatedPhaseId == id || element.DemolishedPhaseId == id); break;
+          default: Enqueue(id); break;
+        }
       }
-      foreach (var id in args.GetDeletedElementIds())
-      { if (!_rootKeys.ContainsKey(id)) _full = true; Enqueue(id); }
+      // An element that was never captured (a type, an annotation) leaves nothing to remove.
+      foreach (var id in args.GetDeletedElementIds()) if (_rootKeys.ContainsKey(id)) Enqueue(id);
     }
     public void Stop() { Stopped = true; Description = "Captura detenida · se reconciliará al continuar"; }
-    public void RequestFull() { _full = true; _failed = false; Stopped = false; _lastChange = DateTime.MinValue; }
+    public void RequestFull(string reason = null)
+    {
+      if (!_full && reason != null) _log.Emit("capture", "FULL_CAPTURE", "Captura completa: " + reason);
+      _full = true; _failed = false; Stopped = false; _lastChange = DateTime.MinValue;
+    }
+    // The captured elements a changed type, material, level or phase affects (their own change may not be reported).
+    private void EnqueueUsers(Func<Element, bool> uses)
+    {
+      foreach (var id in _rootKeys.Keys.ToList())
+      {
+        var element = _document.GetElement(id);
+        try { if (element != null && uses(element)) Enqueue(id); }
+        catch (Autodesk.Revit.Exceptions.ApplicationException) { Enqueue(id); }
+      }
+    }
+    private bool UsesMaterial(Element element, ElementId material) =>
+      element.GetMaterialIds(false).Contains(material) || _document.GetElement(element.GetTypeId())?.GetMaterialIds(false).Contains(material) == true;
+    // The captured view changed (filters, section box, hidden elements): what appears is read, what disappears is removed.
+    private void EnqueueVisibilityChanges()
+    {
+      var now = new HashSet<ElementId>(new FilteredElementCollector(_document, _view.Id).WhereElementIsNotElementType().ToElementIds());
+      foreach (var id in now.Where(id => !_visible.Contains(id))) Enqueue(id);
+      foreach (var id in _visible.Where(id => !now.Contains(id) && _rootKeys.ContainsKey(id)).ToList()) Enqueue(id);
+      _visible = now; _visibilityDirty = false;
+    }
     private void Enqueue(ElementId id) { if (!_changed) _captureClock.Restart(); if (_queued.Add(id)) { _queue.Enqueue(id); _changed = true; } }
 
     public LiveSnapshot Tick()
@@ -122,7 +156,7 @@ namespace OpenProject.Revit.LiveSync.Capture
         _ifcTemplateInspected = true;
         Bim.IfcTemplateDiagnostic.Inspect(_document, _elements.Values, _diagnosticsDirectory, _log);
       }
-      _changed = false; Description = $"Captura al día · {_elements.Count} elementos";
+      _changed = false; _processed = 0; _total = 0; Description = $"Captura al día · {_elements.Count} elementos";
       CapturedElements = snapshot.Elements.Count;
       _captureClock.Stop();
       _log.Emit("capture", "CAPTURE_READY", "Captura completada y entregada al almacenamiento local", durationMs: _captureClock.ElapsedMilliseconds, elements: _elements.Count);

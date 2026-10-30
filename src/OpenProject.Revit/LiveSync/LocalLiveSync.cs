@@ -288,7 +288,7 @@ namespace OpenProject.Revit.LiveSync
       }
     }
     private static void Reconcile()
-    { _worker.HoldForReconciliation(); _capture.RequestFull(); _reconciling = true; _resumeAfterCapture = true; _message = null; _needsCapture = _captureArmed; }
+    { _worker.HoldForReconciliation(); _capture.RequestFull("reconciliar con Revit"); _reconciling = true; _resumeAfterCapture = true; _message = null; _needsCapture = _captureArmed; }
     // Captures pending changes (continuing an interrupted capture where it stopped) and then publishes them.
     private static void Synchronize()
     {
