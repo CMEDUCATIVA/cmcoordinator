@@ -99,6 +99,31 @@ namespace OpenProject.Revit.LiveSync.Queue
     public bool Joined { get; init; }
     // The first merge would send nearly the whole model: it waits for the person to confirm (UI-8 #29).
     public bool NeedsConfirmation { get; init; }
+    // UI-8 logic 8: elements of this Revit that differ from the CDE because their change stayed out (or would).
+    public IReadOnlyList<DifferingElement> Differs { get; init; } = Array.Empty<DifferingElement>();
+  }
+
+  /// <summary>UI-8 logic 8: an element whose change did not enter the CDE (or would not), and why.</summary>
+  public sealed class DifferingElement
+  {
+    public string Id { get; set; }
+    public string Name { get; set; }
+    // stale: changed by someone after this person's version · host: changed by its host · hostRejected: its host stayed
+    // out · removed: deleted by someone after this person's version.
+    public string Reason { get; set; }
+    public string By { get; set; }
+    public string At { get; set; }
+    // Only one aspect stayed out; the rest of the change entered.
+    public bool Partial { get; set; }
+  }
+
+  /// <summary>What the CDE answered to a commit: the new version of what entered and what stayed out.</summary>
+  public sealed class CommitResult
+  {
+    public Dictionary<string, long[]> Versions { get; set; } = new();
+    public List<DifferingElement> Rejected { get; set; } = new();
+    public int RejectedCount { get; set; }
+    public int ForcedCount { get; set; }
   }
 
   public static class SyncEncoding

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows;
@@ -77,6 +78,35 @@ namespace OpenProject.Revit.LiveSync.Presentation
     private Notice Current => !IsCdeConnected ? Notice.None : IsRevoked ? Notice.Revoked : IsNoPermission ? Notice.NoPermission : Access.ReadOnly ? Notice.ReadOnly
       : Status.NeedsConfirmation ? Notice.Confirm : Access.CanCreate ? Notice.Empty : IsPromoted && Access.Known ? Notice.Promoted
       : Status.Comparison != null && !SyncChosen && !Status.Joined ? Notice.Compared : Notice.None;
+    // UI-8 logic 8: changes of this Revit that did not enter the CDE (or would not) because someone changed those elements
+    // after this person's version. They stay listed until they match the CDE again; Administración may force its version.
+    public IReadOnlyList<Queue.DifferingElement> Differs => Status.Differs ?? Array.Empty<Queue.DifferingElement>();
+    public Visibility DiffersVisibility => IsCdeConnected && Differs.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    public string DiffersTitle => Differs.Count == 1 ? "1 elemento difiere del CDE" : $"{Differs.Count:N0} elementos difieren del CDE";
+    public string DiffersText => "Tu cambio no entró porque otra persona cambió " + (Differs.Count == 1 ? "ese elemento" : "esos elementos") +
+      " después de tu versión. En el CDE se conserva lo suyo; en tu Revit siguen como los dejaste.";
+    public IReadOnlyList<string> DiffersLines
+    {
+      get
+      {
+        var lines = Differs.Take(6).Select(DifferLine).ToList();
+        if (Differs.Count > 6) lines.Add($"y {Differs.Count - 6:N0} más");
+        return lines;
+      }
+    }
+    public static string DifferLine(Queue.DifferingElement item)
+    {
+      var who = string.IsNullOrWhiteSpace(item.By) ? "otra persona" : item.By;
+      var reason = item.Reason switch
+      {
+        "host" => "cambió por su anfitrión",
+        "hostRejected" => "su anfitrión no entró",
+        "removed" => $"lo borró {who}",
+        _ => $"lo cambió {who}"
+      };
+      return $"{(string.IsNullOrWhiteSpace(item.Name) ? item.Id : item.Name)} · {reason}{(item.Partial ? " · entró el resto" : "")}";
+    }
+    public Visibility ForceVisibility => Access.Level == "admin" && Differs.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     public PanelNoticeKind NoticeKind => Current switch
     {
       Notice.Revoked => PanelNoticeKind.Danger,
@@ -243,7 +273,8 @@ namespace OpenProject.Revit.LiveSync.Presentation
         SyncIndicatorBrush = TransferBrush;
         foreach (var name in new[] { nameof(Model), nameof(DocumentTitle), nameof(RevitState), nameof(SyncIndicatorBrush), nameof(SyncIndicatorLabel), nameof(Capture), nameof(Status), nameof(PauseLabel), nameof(ShowPlayIcon), nameof(CanSynchronize), nameof(SyncLabel), nameof(CanPause), nameof(CanStop), nameof(CanRestartCapture), nameof(TransferTitle), nameof(TransferDetail), nameof(TransferBrush), nameof(TransferProgressVisibility), nameof(TransferIndeterminate), nameof(TransferPercent), nameof(TransferFraction), nameof(TransferPercentLabel), nameof(CapturedCount), nameof(StoredRevision), nameof(DisplayedRevision), nameof(PendingLabel), nameof(BlockLabel), nameof(CdeSession),
           nameof(Access), nameof(SyncHint), nameof(GroupLabel), nameof(GroupVisibility), nameof(GroupHint), nameof(CanReplace), nameof(ReplaceVisibility), nameof(NoticeKind), nameof(NoticeVisibility), nameof(NoticeTitle), nameof(NoticeText),
-          nameof(IsRevoked), nameof(CanRestore), nameof(RestoreVisibility), nameof(IsLive), nameof(ReplaceHint), nameof(IdentityName), nameof(SyncButtonEnabled) })
+          nameof(IsRevoked), nameof(CanRestore), nameof(RestoreVisibility), nameof(IsLive), nameof(ReplaceHint), nameof(IdentityName), nameof(SyncButtonEnabled),
+          nameof(Differs), nameof(DiffersVisibility), nameof(DiffersTitle), nameof(DiffersText), nameof(DiffersLines), nameof(ForceVisibility) })
           PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
       }
       if (activity != Activity) { Activity = activity; PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Activity))); }

@@ -266,6 +266,14 @@ namespace OpenProject.Revit.LiveSync
           else if (action is "sync" or "retry") { _syncChosen = true; Synchronize(); }
           // UI-8 #29: the person accepted sending a first merge that differs from the CDE in nearly everything.
           else if (action == "confirmMerge") { _syncChosen = true; _worker.ConfirmFullMerge(); Synchronize(); }
+          // UI-8 logic 8: the elements whose change did not enter the CDE, selected in Revit so the person sees them.
+          else if (action == "selectDiffers") SelectDiffering(app);
+          // UI-8 case 17: Administración publishes its version of the differing elements over the CDE's.
+          else if (action == "forceDiffers")
+          {
+            if (_worker.Access.Level != "admin") { _message = "Solo Administración puede forzar su versión."; continue; }
+            _syncChosen = true; _worker.ForceDiffering(_worker.Progress.Differs.Select(item => item.Id)); Synchronize();
+          }
           else if (action == "reset") { _message = null; Reconcile(); _drawings?.RedrawAll(); _captureArmed = true; _needsCapture = true; }
           // Confirmed in the panel; the CDE only offers it to Administración of a model with content.
           else if (action == "replace")
@@ -394,6 +402,15 @@ namespace OpenProject.Revit.LiveSync
     }
     public static void Shutdown()
     { _needsCapture = false; _wakeTimer?.Dispose(); _worker?.Dispose(); _worker = null; _telemetry?.Dispose(); _external?.Dispose(); _captureEvent?.Dispose(); }
+    private static void SelectDiffering(UIApplication app)
+    {
+      var document = app.ActiveUIDocument?.Document;
+      if (document == null || _worker == null) return;
+      var ids = _worker.Progress.Differs.Select(item => document.GetElement(item.Id)?.Id).Where(id => id != null).ToList();
+      if (ids.Count == 0) { _message = "Los elementos que difieren del CDE ya no están en este modelo."; return; }
+      app.ActiveUIDocument.Selection.SetElementIds(ids);
+      try { app.ActiveUIDocument.ShowElements(ids); } catch (Autodesk.Revit.Exceptions.ArgumentException) { /* Not visible in the active view. */ }
+    }
     private sealed class ActionHandler : IExternalEventHandler
     { public void Execute(UIApplication app) => ExecuteActions(app); public string GetName() => "Controles de sincronización local"; }
     private sealed class CaptureHandler : IExternalEventHandler

@@ -10,7 +10,7 @@ using Newtonsoft.Json;
 namespace OpenProject.Revit.LiveSync.Queue
 {
   // Owned by one worker. Revit API objects never enter this database or its thread.
-  public sealed class SqliteOutbox : IDisposable
+  public sealed partial class SqliteOutbox : IDisposable
   {
     private readonly SqliteConnection _db;
     private readonly FileStream _lease;
@@ -38,6 +38,7 @@ namespace OpenProject.Revit.LiveSync.Queue
           CREATE TABLE IF NOT EXISTS drawing_target (id TEXT PRIMARY KEY,json TEXT NOT NULL,hash TEXT NOT NULL);
           CREATE TABLE IF NOT EXISTS drawing_confirmed (id TEXT PRIMARY KEY,json TEXT NOT NULL,hash TEXT NOT NULL);
           CREATE TABLE IF NOT EXISTS baseline (id TEXT PRIMARY KEY,hash TEXT NOT NULL);");
+        EnsureVersions();
       }
       catch { _db?.Dispose(); _lease.Dispose(); throw; }
     }
@@ -159,6 +160,7 @@ namespace OpenProject.Revit.LiveSync.Queue
         if (Convert.ToInt32(count.ExecuteScalar()) > 0 || Get("revision") != null) return false;
       using var transaction = _db.BeginTransaction();
       Execute("INSERT OR REPLACE INTO baseline SELECT id,hash FROM desired");
+      RecordBaselineAspects();
       Set("baselineAt", DateTime.UtcNow.ToString("o"));
       transaction.Commit();
       using var recorded = Command("SELECT count(*) FROM baseline");
@@ -169,7 +171,7 @@ namespace OpenProject.Revit.LiveSync.Queue
     public SyncJob Prepare(string sessionId, long startedAt, string baseRevision, bool reset,
       Action<int, int, long> progress = null, bool compact = false, bool drawings = false,
       bool merge = false, IReadOnlyDictionary<string, string> remote = null, IReadOnlyCollection<string> gone = null,
-      string remoteCatalog = null)
+      string remoteCatalog = null, VersionPlan versions = null)
     {
       var jobId = Guid.NewGuid().ToString("N");
       History(jobId, "Preparando paquetes", "Agrupando la revisión sin cargar el modelo completo en memoria");
@@ -194,6 +196,15 @@ namespace OpenProject.Revit.LiveSync.Queue
           : "SELECT c.id FROM confirmed c LEFT JOIN target t ON c.id=t.id WHERE t.id IS NULL");
         using var removedReader = removedCommand.ExecuteReader();
         while (removedReader.Read()) removed.Add(removedReader.GetString(0));
+      }
+      // UI-8 logic 8: a merge with a CDE that versions elements says what each change starts from; what would not enter
+      // stays out now and is listed as differing.
+      var versioned = versions != null && merge && !reset;
+      var removedBases = new Dictionary<string, long>();
+      if (versioned)
+      {
+        LoadForced(versions);
+        removed = removed.Where(id => PlanRemoval(versions, id, removedBases)).ToList();
       }
       var sequence = long.TryParse(Get("sequence"), out var number) ? number + 1 : 1;
       var job = new SyncJob { JobId = jobId, SessionId = sessionId, SessionStartedAt = startedAt,
@@ -249,19 +260,26 @@ namespace OpenProject.Revit.LiveSync.Queue
       void Flush(IReadOnlyList<string> introduced, IReadOnlyList<string> nextPartShapes)
       {
         builder.Append(compactor == null ? "]" : tableKey + compactor.Table(introduced));
-        builder.Append(printsKey).Append(JsonConvert.SerializeObject(prints)).Append('}');
+        builder.Append(printsKey).Append(JsonConvert.SerializeObject(prints));
+        if (versioned)
+        {
+          builder.Append(",\"versions\":").Append(JsonConvert.SerializeObject(versions.PartVersions));
+          if (versions.PartForce.Count > 0) builder.Append(",\"force\":").Append(JsonConvert.SerializeObject(versions.PartForce));
+          versions.PartVersions.Clear(); versions.PartForce.Clear();
+        }
+        builder.Append('}');
         Store(builder.ToString()); builder.Clear().Append(prefix); inPart = 0; partBytes = frame; prints.Clear();
         compactor?.KeepOnly(nextPartShapes ?? Array.Empty<string>());
       }
-      using (var command = Command(updatedSql))
-      using (var reader = command.ExecuteReader()) while (reader.Read())
+      void Add(string json, string id, string hash)
       {
-        var json = reader.GetString(0);
-        var id = reader.GetString(1);
-        var print = reader.GetString(2).Substring(0, FingerprintLength);
+        var print = hash.Substring(0, FingerprintLength);
+        // UI-8 logic 8: decided on the element as captured, before its shapes are shared.
+        object entry = null; var force = false;
+        if (versioned && (entry = PlanElement(versions, id, json, out force)) == null) return;
         IReadOnlyList<string> fresh = Array.Empty<string>(), used = Array.Empty<string>();
         if (compactor != null) json = compactor.Compact(json, out fresh, out used);
-        var printBytes = Encoding.UTF8.GetByteCount(JsonConvert.ToString(id)) + FingerprintLength + 4;
+        var printBytes = Encoding.UTF8.GetByteCount(JsonConvert.ToString(id)) + FingerprintLength + 4 + (versioned ? 64 : 0);
         var jsonBytes = Encoding.UTF8.GetByteCount(json) + (inPart > 0 ? 1 : 0) + printBytes;
         // Shapes first seen in this element move with it if it opens the next part.
         if (inPart > 0 && (partBytes + jsonBytes + (compactor?.Bytes ?? 0) > SyncEncoding.ChunkBytes || inPart >= Capture.CaptureLimits.PartElements))
@@ -269,17 +287,31 @@ namespace OpenProject.Revit.LiveSync.Queue
         if (inPart++ > 0) builder.Append(',');
         builder.Append(json); partBytes += jsonBytes; updatedCount++;
         prints[id] = print;
+        if (versioned) { versions.PartVersions[id] = entry; if (force) versions.PartForce.Add(id); }
         if (updatedCount == updatedTotal || updatedCount % 25 == 0)
           progress?.Invoke(updatedCount, preparationTotal, totalBytes + partBytes + (compactor?.Bytes ?? 0));
       }
+      using (var command = Command(updatedSql))
+      using (var reader = command.ExecuteReader()) while (reader.Read()) Add(reader.GetString(0), reader.GetString(1), reader.GetString(2));
+      // Case 17: what Administración forces travels even if it did not change since it was last sent.
+      if (versioned && versions.CanForce)
+        foreach (var id in versions.Forced.Where(id => !versions.Emitted.Contains(id)).ToList())
+        {
+          using var command = Command("SELECT json,id,hash FROM target WHERE id=$id", ("$id", id));
+          using var reader = command.ExecuteReader();
+          if (reader.Read()) Add(reader.GetString(0), reader.GetString(1), reader.GetString(2));
+        }
       if (inPart > 0) Flush(null, null);
       const int removedPerPart = 20000;
       for (var offset = 0; offset < removed.Count; offset += removedPerPart)
       {
-        Store("{\"protocol\":3,\"kind\":\"removed\",\"removed\":" +
-          JsonConvert.SerializeObject(removed.Skip(offset).Take(removedPerPart), LiveJson.Settings) + "}");
+        var slice = removed.Skip(offset).Take(removedPerPart).ToList();
+        Store("{\"protocol\":3,\"kind\":\"removed\",\"removed\":" + JsonConvert.SerializeObject(slice, LiveJson.Settings) +
+          (versioned ? ",\"bases\":" + JsonConvert.SerializeObject(slice.ToDictionary(id => id, id => removedBases[id])) : "") + "}");
         progress?.Invoke(updatedCount + Math.Min(offset + removedPerPart, removed.Count), preparationTotal, totalBytes);
       }
+      // Everything predicted out and nothing else to send: the catalog keeps the job valid.
+      if (partIndex == 0) Store("{\"protocol\":3,\"kind\":\"catalog\",\"bim\":" + catalog + "}");
       var drawingCount = drawings ? StoreDrawings(reset, Store) : 0;
       progress?.Invoke(preparationTotal, preparationTotal, totalBytes);
       job.ByteLength = totalBytes; job.ChunkCount = partIndex;

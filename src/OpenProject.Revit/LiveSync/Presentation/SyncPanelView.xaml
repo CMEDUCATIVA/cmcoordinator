@@ -270,6 +270,33 @@
      <TextBlock Text="Restaurar modelo anterior…" FontSize="12" VerticalAlignment="Center"/>
     </StackPanel>
    </Button>
+   <!-- UI-8 logic 8: changes of this Revit that did not enter the CDE; listed until they match it again. -->
+   <Border Visibility="{Binding DiffersVisibility,Mode=OneWay}" BorderThickness="1" CornerRadius="4" Padding="10,8" Margin="0,0,0,14"
+     Background="{DynamicResource NoticeWarningBackground}" BorderBrush="{DynamicResource NoticeWarningBorder}"
+     AutomationProperties.LiveSetting="Polite" AutomationProperties.Name="{Binding DiffersTitle,Mode=OneWay}">
+    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+     <Path Grid.Column="0" Style="{StaticResource LineIcon}" Width="15" Height="15" Margin="0,1,8,0" VerticalAlignment="Top" Data="M12,3 L22,20 L2,20 Z M12,9 L12,14 M12,16.5 L12,17"/>
+     <StackPanel Grid.Column="1">
+      <TextBox Text="{Binding DiffersTitle,Mode=OneWay}" Style="{StaticResource SelectableInfo}" FontSize="12" FontWeight="SemiBold"/>
+      <TextBox Text="{Binding DiffersText,Mode=OneWay}" Style="{StaticResource SelectableCaption}" Margin="0,2,0,6"/>
+      <ItemsControl ItemsSource="{Binding DiffersLines,Mode=OneWay}" AutomationProperties.Name="Elementos que difieren del CDE">
+       <ItemsControl.ItemTemplate><DataTemplate>
+        <TextBox Text="{Binding Mode=OneWay}" Style="{StaticResource SelectableCaption}" Margin="0,0,0,2"/>
+       </DataTemplate></ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <Grid Margin="0,8,0,0">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="6"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+       <Button Grid.Column="0" Style="{StaticResource SquareButton}" Tag="selectDiffers" Click="ActionClick" AutomationProperties.Name="Seleccionar en Revit los elementos que difieren">
+        <TextBlock Text="Seleccionar en Revit" FontSize="12" VerticalAlignment="Center"/>
+       </Button>
+       <Button Grid.Column="2" Style="{StaticResource SquareButton}" Click="ForceClick" Visibility="{Binding ForceVisibility,Mode=OneWay}"
+         ToolTip="Publica tu versión de estos elementos sobre la del CDE; queda anotado en la trazabilidad" AutomationProperties.Name="Forzar mi versión">
+        <TextBlock Text="Forzar mi versión…" FontSize="12" VerticalAlignment="Center"/>
+       </Button>
+      </Grid>
+     </StackPanel>
+    </Grid>
+   </Border>
    <Border Background="{DynamicResource PanelSurface}" BorderBrush="{DynamicResource PanelBorder}" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,14">
     <StackPanel>
      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>

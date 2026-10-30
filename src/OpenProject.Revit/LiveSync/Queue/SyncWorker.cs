@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.IO;
@@ -60,6 +61,8 @@ namespace OpenProject.Revit.LiveSync.Queue
       _log.Emit("transport", "PERMISSION_BACK", "Se recuperó «Ver modelos IFC»; la sincronización sigue");
     }
     public const string CatalogReuseFeature = "catalogReuse";
+    // UI-8 logic 8: the CDE versions each element and answers what stayed out.
+    public const string ElementVersionsFeature = "elementVersions";
     public const string NoPermissionDetail = "Tu rol ya no puede ver modelos IFC en este proyecto. Pídeselo a quien administre el proyecto; cuando lo tengas, seguirá sola. Tus cambios quedan guardados en este equipo.";
     public const string RevokedDetail = "El CDE ya no acepta esta conexión: Administración la revocó o venció su token. Lo publicado se conserva en el CDE y tus cambios quedan guardados en este equipo.";
     private volatile bool _revoked;
@@ -76,6 +79,7 @@ namespace OpenProject.Revit.LiveSync.Queue
     // Questions from the panel that need the queue or the CDE; the worker answers them between steps.
     private TaskCompletionSource<ReplacePreview> _preview;
     private TaskCompletionSource<bool> _restore;
+    private string[] _force;
     private int _retry;
     private int _disposed;
     private string _session = Guid.NewGuid().ToString("N");
@@ -128,7 +132,8 @@ namespace OpenProject.Revit.LiveSync.Queue
         Done = 0, Total = 0, Paused = false, Attention = false,
         ReceiverRevision = previous.ReceiverRevision, ViewerRevision = previous.ViewerRevision, Jobs = previous.Jobs,
         HasPendingChanges = previous.HasPendingChanges, Drawings = previous.Drawings, DrawingsPending = previous.DrawingsPending, DrawingsSupported = previous.DrawingsSupported, PendingElements = previous.PendingElements,
-        Access = _access, RestorePoint = _restorePoint, Comparison = _comparison, Joined = _joined, NeedsConfirmation = _needsConfirmation };
+        Access = _access, RestorePoint = _restorePoint, Comparison = _comparison, Joined = _joined, NeedsConfirmation = _needsConfirmation,
+        Differs = previous.Differs };
       _log.Emit("queue", "PUBLISH_REQUESTED", "Sincronización solicitada por el usuario");
     }
     /// <summary>The person accepts sending a first merge in which nearly everything differs from the CDE (UI-8 #29).</summary>
@@ -151,6 +156,13 @@ namespace OpenProject.Revit.LiveSync.Queue
       var source = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
       Interlocked.Exchange(ref _restore, source)?.TrySetCanceled();
       return source.Task;
+    }
+    /// <summary>Administración publishes its version of these differing elements over the CDE's (UI-8 case 17).</summary>
+    public void ForceDiffering(IEnumerable<string> ids)
+    {
+      Interlocked.Exchange(ref _force, (ids ?? Array.Empty<string>()).ToArray());
+      _log.Emit("queue", "FORCE_REQUESTED", "Administración fuerza su versión de elementos que difieren del CDE");
+      RequestPublish();
     }
     public void Retry() => RequestPublish();
     public void RequestReplace() { _replace = true; _needsConfirmation = false; RequestPublish(); _log.Emit("queue", "REPLACE_REQUESTED", "Reemplazo del modelo solicitado"); }
@@ -280,12 +292,14 @@ namespace OpenProject.Revit.LiveSync.Queue
               : remote.RevisionId != outbox.Get("revision") || remote.SourceId != outbox.Get("source") || remote.SessionId != _session;
             IReadOnlyDictionary<string, string> prints = null;
             IReadOnlyCollection<string> gone = null;
+            RemoteFingerprints remotePrints = null;
             if (merging && !reset && !ownRevision && _receiver is ISyncFingerprints fingerprints)
             {
               Report(outbox, "Comparando con el CDE", "Leyendo las huellas del modelo para enviar solo lo que cambió", remote);
-              var remotePrints = await fingerprints.FingerprintsAsync(_cancel.Token).ConfigureAwait(false);
+              remotePrints = await fingerprints.FingerprintsAsync(_cancel.Token).ConfigureAwait(false);
               prints = remotePrints.Fingerprints ?? new Dictionary<string, string>();
               gone = remotePrints.Removed;
+              if (remote.Supports(ElementVersionsFeature)) outbox.ResolveKnown(remotePrints);
               // A queue that never published sends what differs from the CDE: when that is nearly everything, ask first.
               // With a starting point nothing old is sent, so there is nothing to confirm (UI-8 logic 8).
               if (!_fullMergeConfirmed && outbox.Get("revision") == null && !outbox.HasBaseline)
@@ -304,8 +318,12 @@ namespace OpenProject.Revit.LiveSync.Queue
             Report(outbox, "Preparando paquetes", "Agrupando elementos en paquetes reanudables", remote);
             _retryAtJob = _retry;
             _preparing = true;
+            var plan = merging && !reset && remote.Supports(ElementVersionsFeature)
+              ? new SqliteOutbox.VersionPlan { Remote = remotePrints?.Versions, Authors = remotePrints?.Authors ?? new Dictionary<string, string>(),
+                  Gone = new HashSet<string>(gone ?? Array.Empty<string>()), CanForce = CdeModelAccess.From(remote).Level == "admin" }
+              : null;
             try { job = outbox.Prepare(_session, _started, remote.RevisionId, reset, ReportPreparation, compact: remote.Supports("sharedGeometry"), drawings: remote.Supports(DrawingsFeature),
-              merge: merging && !reset, remote: prints, gone: gone, remoteCatalog: remote.Supports(CatalogReuseFeature) ? remote.CatalogHash : null); }
+              merge: merging && !reset, remote: prints, gone: gone, remoteCatalog: remote.Supports(CatalogReuseFeature) ? remote.CatalogHash : null, versions: plan); }
             finally { _preparing = false; }
             if (reset) _replace = false;
             _log.Emit("queue", "JOB_PREPARED", job.Reset ? "Trabajo preparado · captura completa" : job.Merge == true ? "Trabajo preparado · fusionar" : "Trabajo preparado", job.JobId, bytes: job.ByteLength);
@@ -352,6 +370,11 @@ namespace OpenProject.Revit.LiveSync.Queue
             finally { _inFlight = false; }
           }
           outbox.Complete(job);
+          // UI-8 logic 8: what entered takes its new version; what stayed out is listed until it matches the CDE again.
+          var result = (_receiver as ISyncCommitResult)?.TakeCommit(job.JobId);
+          outbox.ApplyCommit(result);
+          if (result?.RejectedCount > 0)
+            _log.Emit("transport", "CHANGES_REJECTED", $"{result.RejectedCount:N0} cambios no entraron: partían de una versión anterior a la del CDE", job.JobId);
           _joined = true;
           _publishRequested = outbox.HasPending || _retry != _retryAtJob;
           _log.Emit("transport", "REVISION_STORED", "Revisión guardada en destino; presentación independiente", job.JobId);
@@ -427,6 +450,8 @@ namespace OpenProject.Revit.LiveSync.Queue
         }
         catch (Exception error) { preview.TrySetException(error); }
       }
+      var force = Interlocked.Exchange(ref _force, null);
+      if (force != null && outbox.Force(force) > 0) changed = true;
       var restore = Interlocked.Exchange(ref _restore, null);
       if (restore != null)
       {
@@ -453,7 +478,11 @@ namespace OpenProject.Revit.LiveSync.Queue
     private async Task CompareOnConnectAsync(SqliteOutbox outbox, ReceiverStatus remote)
     {
       if (_receiver is not ISyncFingerprints source || !remote.Supports(MergeFeature)) { _compared = true; return; }
-      var compared = Compare(outbox, remote, await source.FingerprintsAsync(_cancel.Token).ConfigureAwait(false));
+      var prints = await source.FingerprintsAsync(_cancel.Token).ConfigureAwait(false);
+      // UI-8 logic 8: the version each element of this Revit starts from is fixed as soon as it is known.
+      if (remote.Supports(ElementVersionsFeature) && outbox.ResolveKnown(prints) > 0)
+        _log.Emit("queue", "VERSIONS_KNOWN", "Versiones de partida de los elementos tomadas del CDE");
+      var compared = Compare(outbox, remote, prints);
       _comparison = compared; _compared = true;
       _log.Emit("transport", "MODEL_COMPARED", compared.Compared
         ? $"Comparado con el CDE al conectar: {compared.Unchanged:N0} iguales · +{compared.Added:N0} · {compared.Changed:N0} cambiados · −{compared.Removed:N0}"
@@ -515,7 +544,7 @@ namespace OpenProject.Revit.LiveSync.Queue
         Drawings = box?.DrawingCount ?? _progress.Drawings, DrawingsPending = box?.HasPendingDrawings ?? _progress.DrawingsPending,
         DrawingsSupported = box == null ? _progress.DrawingsSupported : box.Get("drawingsSupported") == "1", Access = _access,
         QueuePosition = stage == "En cola del CDE" ? _queuePosition : 0, Revoked = _revoked, NoPermission = _noPermission, RestorePoint = _restorePoint,
-        Comparison = _comparison, Joined = _joined, NeedsConfirmation = _needsConfirmation };
+        Comparison = _comparison, Joined = _joined, NeedsConfirmation = _needsConfirmation, Differs = box?.Differs ?? _progress.Differs };
     }
     private void ReportPreparation(int done, int total, long bytes)
     {
@@ -530,7 +559,7 @@ namespace OpenProject.Revit.LiveSync.Queue
         ReceiverRevision = previous.ReceiverRevision, ViewerRevision = previous.ViewerRevision,
         Jobs = previous.Jobs, PendingElements = previous.PendingElements, HasPendingChanges = previous.HasPendingChanges, Drawings = previous.Drawings, DrawingsPending = previous.DrawingsPending, DrawingsSupported = previous.DrawingsSupported,
         Access = previous.Access, Revoked = previous.Revoked, NoPermission = previous.NoPermission, RestorePoint = previous.RestorePoint,
-        Comparison = previous.Comparison, Joined = previous.Joined, NeedsConfirmation = previous.NeedsConfirmation
+        Comparison = previous.Comparison, Joined = previous.Joined, NeedsConfirmation = previous.NeedsConfirmation, Differs = previous.Differs
       };
     }
     private Task Delay(int milliseconds) => Task.Delay(milliseconds, _cancel.Token);

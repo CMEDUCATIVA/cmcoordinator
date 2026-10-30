@@ -172,6 +172,28 @@ namespace OpenProject.Revit.LiveSync.Presentation
       LocalLiveSync.Request(button.Tag as string);
       Refresh();
     }
+    // UI-8 case 17: Administración publishes its version of the differing elements over the CDE's, after confirming.
+    private void ForceClick(object sender, RoutedEventArgs args)
+    {
+      if (_confirming || _model.ForceVisibility != Visibility.Visible) return;
+      _confirming = true;
+      try
+      {
+        var count = _model.Differs.Count;
+        var dialog = new TaskDialog("Forzar mi versión")
+        {
+          MainIcon = TaskDialogIcon.TaskDialogIconWarning,
+          MainInstruction = count == 1 ? "¿Publicar tu versión de 1 elemento sobre la del CDE?" : $"¿Publicar tu versión de {count:N0} elementos sobre la del CDE?",
+          MainContent = string.Join(Environment.NewLine, _model.DiffersLines) + Environment.NewLine + Environment.NewLine + "Lo que otras personas cambiaron en esos elementos se sustituye por tu versión.",
+          FooterText = "Queda anotado en la trazabilidad del modelo. Solo Administración puede hacerlo.",
+          CommonButtons = TaskDialogCommonButtons.Cancel, DefaultButton = TaskDialogResult.Cancel, AllowCancellation = true
+        };
+        dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Forzar mi versión", "Se envía en la próxima sincronización");
+        if (dialog.Show() == TaskDialogResult.CommandLink1) LocalLiveSync.Request("forceDiffers");
+      }
+      catch (Exception error) { Serilog.Log.Warning(error, "No se pudo forzar la versión."); }
+      finally { _confirming = false; Refresh(); }
+    }
     // UI-8 #29: a first merge that differs from the CDE in nearly everything is sent only after this confirmation.
     private void ConfirmFullMerge()
     {

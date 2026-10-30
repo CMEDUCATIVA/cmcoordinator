@@ -62,6 +62,9 @@ namespace OpenProject.Revit.LiveSync.Transport
     public bool Complete { get; set; }
     // UI-8 logic 8: ids removed from the model since its last complete capture (an older CDE sends none).
     public List<string> Removed { get; set; } = new();
+    // UI-8 logic 8 (elementVersions): [geometry, parameters, author id] of each element and the authors' names.
+    public Dictionary<string, long?[]> Versions { get; set; }
+    public Dictionary<string, string> Authors { get; set; } = new();
   }
   public sealed class RemoteJob
   {
@@ -101,8 +104,12 @@ namespace OpenProject.Revit.LiveSync.Transport
   public interface ISyncFingerprints { Task<RemoteFingerprints> FingerprintsAsync(CancellationToken token); }
   // Optional: returns the model to the revision its last replacement left as restore point (Administración only).
   public interface ISyncRestore { Task RestoreAsync(CancellationToken token); }
-  public sealed class SyncReceiver : ISyncReceiver, ISyncPresence, ISyncFingerprints, ISyncRestore, ISyncRejection
+  // Optional: a CDE with element versions answers each commit with what entered and what stayed out (UI-8 logic 8).
+  public interface ISyncCommitResult { CommitResult TakeCommit(string jobId); }
+  public sealed class SyncReceiver : ISyncReceiver, ISyncPresence, ISyncFingerprints, ISyncRestore, ISyncRejection, ISyncCommitResult
   {
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, CommitResult> _commits = new();
+    public CommitResult TakeCommit(string jobId) => _commits.TryRemove(jobId ?? "", out var result) ? result : null;
     private readonly HttpClient _http;
     private readonly Func<Task> _ensureService;
     private readonly CdeDestination _destination;
@@ -185,6 +192,9 @@ namespace OpenProject.Revit.LiveSync.Transport
       using var content = new StringContent("{}", Encoding.UTF8, "application/json");
       using var response = await _http.PostAsync($"api/v3/jobs/{jobId}/commit", content, token).ConfigureAwait(false);
       await Check(response).ConfigureAwait(false);
+      // An earlier CDE answers 204 without a body.
+      var body = response.Content == null ? "" : await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+      if (!string.IsNullOrWhiteSpace(body) && JsonConvert.DeserializeObject<CommitResult>(body) is { } result) _commits[jobId] = result;
       _feed?.ExpectRevision(jobId);
     }
     private void EnsureAccount()
