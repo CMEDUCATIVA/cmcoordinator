@@ -85,6 +85,10 @@ namespace OpenProject.Revit.LiveSync.Transport
       }
     }
     public Dictionary<string, string> Authors { get; set; } = new();
+    // The huella of the geometry and of the parameters of each element, also of those made of two people's changes (F6).
+    public Dictionary<string, string[]> AspectPrints { get; set; } = new();
+    // The clock of the last restoration: what is at this version was raised by it, not edited (F4).
+    public long? RestoredClock { get; set; }
   }
   public sealed class RemoteJob
   {
@@ -125,6 +129,7 @@ namespace OpenProject.Revit.LiveSync.Transport
   // Optional: returns the model to the revision its last replacement left as restore point (Administración only).
   public interface ISyncRestore { Task RestoreAsync(CancellationToken token); }
   // Optional (feature printUpgrade): replaces old huellas in the CDE without new versions or activity. Answers how many changed.
+  public interface ISyncWithheld { Task ReportWithheldAsync(IReadOnlyList<WithheldReport> items, CancellationToken token); }
   public interface ISyncPrintUpgrade { Task<int> UpgradePrintsAsync(IReadOnlyDictionary<string, PrintUpgrade> upgrades, CancellationToken token); }
   // Optional: a CDE with element versions answers each commit with what entered and what stayed out (UI-8 logic 8).
   public interface ISyncCommitResult { CommitResult TakeCommit(string jobId); }
@@ -178,6 +183,13 @@ namespace OpenProject.Revit.LiveSync.Transport
       await Check(response).ConfigureAwait(false);
       return JsonConvert.DeserializeObject<RemoteFingerprints>(await response.Content.ReadAsStringAsync().ConfigureAwait(false))
         ?? new RemoteFingerprints();
+    }
+    public async Task ReportWithheldAsync(IReadOnlyList<WithheldReport> items, CancellationToken token)
+    {
+      EnsureAccount();
+      using var content = new StringContent(JsonConvert.SerializeObject(new { items }, LiveJson.Settings), Encoding.UTF8, "application/json");
+      using var response = await _http.PostAsync("api/v3/withheld", content, token).ConfigureAwait(false);
+      await Check(response).ConfigureAwait(false);
     }
     public const string PrintUpgradeRoute = "api/v3/fingerprints/upgrade";
     public async Task<int> UpgradePrintsAsync(IReadOnlyDictionary<string, PrintUpgrade> upgrades, CancellationToken token)

@@ -63,6 +63,9 @@ namespace OpenProject.Revit.LiveSync.Queue
     public const string CatalogReuseFeature = "catalogReuse";
     // UI-8 logic 8: the CDE versions each element and answers what stayed out.
     public const string ElementVersionsFeature = "elementVersions";
+    // 8.J: the CDE records what stayed out without being sent.
+    public const string WithheldReportFeature = "withheldReport";
+    private const int WithheldBatch = 200;
     // Contract 1: the CDE accepts replacing the old huellas of its elements.
     public const string PrintUpgradeFeature = "printUpgrade";
     private const int PrintUpgradeBatch = 2000;
@@ -330,12 +333,13 @@ namespace OpenProject.Revit.LiveSync.Queue
             _retryAtJob = _retry;
             _preparing = true;
             var plan = merging && !reset && remote.Supports(ElementVersionsFeature)
-              ? new SqliteOutbox.VersionPlan { Remote = remotePrints?.Versions, Authors = remotePrints?.Authors ?? new Dictionary<string, string>(), Times = remotePrints?.VersionTimes ?? new Dictionary<string, string>(),
+              ? new SqliteOutbox.VersionPlan { Remote = remotePrints?.Versions, RestoredClock = remotePrints?.RestoredClock, Authors = remotePrints?.Authors ?? new Dictionary<string, string>(), Times = remotePrints?.VersionTimes ?? new Dictionary<string, string>(),
                   Gone = new HashSet<string>(gone ?? Array.Empty<string>()), CanForce = CdeModelAccess.From(remote).Level == "admin" }
               : null;
             try { job = outbox.Prepare(_session, _started, remote.RevisionId, reset, ReportPreparation, compact: remote.Supports("sharedGeometry"), drawings: remote.Supports(DrawingsFeature),
               merge: merging && !reset, remote: prints, gone: gone, remoteCatalog: remote.Supports(CatalogReuseFeature) ? remote.CatalogHash : null, versions: plan, revitVersion: Entry.RibbonButtonClickHandler.RevitVersion); }
             finally { _preparing = false; }
+            await ReportWithheldAsync(outbox, remote).ConfigureAwait(false);
             if (reset) _replace = false;
             if (job == null)
             {
@@ -510,6 +514,26 @@ namespace OpenProject.Revit.LiveSync.Queue
       _log.Emit("transport", "MODEL_COMPARED", compared.Compared
         ? $"Comparado con el CDE al conectar: {compared.Unchanged:N0} iguales · +{compared.Added:N0} · {compared.Changed:N0} cambiados · −{compared.Removed:N0}"
         : $"Modelo del CDE con {compared.RemoteCount:N0} elementos; aún no hay captura local con la que comparar");
+    }
+    // 8.J: what stayed out without travelling is told to the CDE, so that it leaves a trace. A failure only leaves it for later.
+    private async Task ReportWithheldAsync(SqliteOutbox outbox, ReceiverStatus remote)
+    {
+      var items = outbox.PendingWithheld;
+      if (items.Count == 0) return;
+      if (!remote.Supports(WithheldReportFeature) || _receiver is not ISyncWithheld reporter) { outbox.ClearWithheld(items.Count); return; }
+      try
+      {
+        var batch = items.Take(WithheldBatch).ToList();
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(_cancel.Token);
+        limit.CancelAfter(TimeSpan.FromSeconds(30));
+        await reporter.ReportWithheldAsync(batch, limit.Token).ConfigureAwait(false);
+        outbox.ClearWithheld(batch.Count);
+        _log.Emit("queue", "WITHHELD_REPORTED", $"{batch.Count:N0} cambios que no entraron, anotados en el CDE");
+      }
+      catch (Exception error) when (error is System.Net.Http.HttpRequestException or TaskCanceledException or ReceiverException)
+      {
+        _log.Emit("queue", "WITHHELD_NOT_REPORTED", "No se pudo anotar en el CDE lo que no entró: " + error.Message);
+      }
     }
     // Contract 1: elements this Revit recognizes by their old huella get the huella every Revit year computes. The CDE changes
     // no version, so nothing here decides what is sent: a failure only leaves it for the next reading.

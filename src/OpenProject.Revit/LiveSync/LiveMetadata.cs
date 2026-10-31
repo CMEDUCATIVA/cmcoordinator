@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Autodesk.Revit.DB;
 
 namespace OpenProject.Revit.LiveSync
@@ -14,10 +16,25 @@ namespace OpenProject.Revit.LiveSync
         Category = Limit(element.Category?.Name ?? "Sin categoría", 512)
       };
       result.Bim = Bim.BimElementReader.Read(element);
+      result.Joined = JoinedTo(element);
       AddParameters(result, element, "");
       var type = element.Document.GetElement(element.GetTypeId());
       if (type != null) AddParameters(result, type, "Tipo · ");
       return result;
+    }
+
+    // Walls joined at their ends and elements with their geometry joined. An element that does not admit joins has none.
+    private static List<string> JoinedTo(Element element)
+    {
+      var ids = new HashSet<ElementId>();
+      try { foreach (var id in JoinGeometryUtils.GetJoinedElements(element.Document, element)) ids.Add(id); }
+      catch (Autodesk.Revit.Exceptions.ApplicationException) { }
+      if (element is Wall && element.Location is LocationCurve curve)
+        for (var end = 0; end < 2; end++)
+          try { foreach (Element other in curve.get_ElementsAtJoin(end)) ids.Add(other.Id); }
+          catch (Autodesk.Revit.Exceptions.ApplicationException) { }
+      ids.Remove(element.Id);
+      return ids.Select(id => element.Document.GetElement(id)?.UniqueId).Where(id => id != null).Distinct().ToList();
     }
 
     private static void AddParameters(LiveElement result, Element element, string prefix)

@@ -23,6 +23,8 @@ namespace OpenProject.Revit.LiveSync
     public Dictionary<string, string> Properties { get; set; } = new();
     public List<LiveMesh> Meshes { get; set; } = new();
     public Bim.BimElement Bim { get; set; }
+    // What Revit keeps joined to this element (F7). Not part of the element: it must not change its hash.
+    [JsonIgnore] public List<string> Joined { get; set; }
   }
 
   public sealed class LiveSnapshot

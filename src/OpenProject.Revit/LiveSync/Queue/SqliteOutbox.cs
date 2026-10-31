@@ -69,11 +69,12 @@ namespace OpenProject.Revit.LiveSync.Queue
         existing.Remove(pair.Key);
         if (_previous?.Elements.TryGetValue(pair.Key, out var old) == true && ReferenceEquals(old, pair.Value)) continue;
         var json = SyncEncoding.Json(pair.Value);
+        SaveJoined(pair.Key, pair.Value.Joined);
         changed |= Execute(@"INSERT INTO desired VALUES($id,$json,$hash) ON CONFLICT(id) DO UPDATE
           SET json=excluded.json,hash=excluded.hash WHERE desired.hash<>excluded.hash",
           ("$id", pair.Key), ("$json", json), ("$hash", ElementHash(json))) > 0;
       }
-      foreach (var id in existing) { Execute("DELETE FROM desired WHERE id=$id", ("$id", id)); changed = true; }
+      foreach (var id in existing) { Execute("DELETE FROM desired WHERE id=$id; DELETE FROM joins WHERE id=$id", ("$id", id)); changed = true; }
       Set("source", snapshot.SourceId); Set("title", snapshot.Title); Set("view", snapshot.View);
       Set("bim", bimJson); Set("documentId", snapshot.DocumentId); Set("legacySourceId", snapshot.LegacySourceId);
       if (changed) { Set("dirty", "1"); ForgetReverted(); }
@@ -272,7 +273,10 @@ namespace OpenProject.Revit.LiveSync.Queue
         {
           builder.Append(",\"versions\":").Append(JsonConvert.SerializeObject(versions.PartVersions));
           if (versions.PartForce.Count > 0) builder.Append(",\"force\":").Append(JsonConvert.SerializeObject(versions.PartForce));
-          versions.PartVersions.Clear(); versions.PartForce.Clear();
+          builder.Append(",\"aspectPrints\":").Append(JsonConvert.SerializeObject(versions.PartPrints));
+          if (versions.PartJoined.Count > 0) builder.Append(",\"joined\":").Append(JsonConvert.SerializeObject(versions.PartJoined));
+          if (versions.WithheldGeometry.Count > 0) builder.Append(",\"outside\":").Append(JsonConvert.SerializeObject(versions.WithheldGeometry));
+          versions.PartVersions.Clear(); versions.PartForce.Clear(); versions.PartPrints.Clear(); versions.PartJoined.Clear();
         }
         builder.Append('}');
         Store(builder.ToString()); builder.Clear().Append(prefix); inPart = 0; partBytes = frame; prints.Clear();
@@ -284,9 +288,10 @@ namespace OpenProject.Revit.LiveSync.Queue
         // UI-8 logic 8: decided on the element as captured, before its shapes are shared.
         object entry = null; var force = false;
         if (versioned && (entry = PlanElement(versions, id, json, hash, out force)) == null) return;
+        var captured = json;
         IReadOnlyList<string> fresh = Array.Empty<string>(), used = Array.Empty<string>();
         if (compactor != null) json = compactor.Compact(json, out fresh, out used);
-        var printBytes = Encoding.UTF8.GetByteCount(JsonConvert.ToString(id)) + FingerprintLength + 4 + (versioned ? 64 : 0);
+        var printBytes = Encoding.UTF8.GetByteCount(JsonConvert.ToString(id)) + FingerprintLength + 4 + (versioned ? 160 : 0);
         var jsonBytes = Encoding.UTF8.GetByteCount(json) + (inPart > 0 ? 1 : 0) + printBytes;
         // Shapes first seen in this element move with it if it opens the next part.
         if (inPart > 0 && (partBytes + jsonBytes + (compactor?.Bytes ?? 0) > SyncEncoding.ChunkBytes || inPart >= Capture.CaptureLimits.PartElements))
@@ -294,7 +299,13 @@ namespace OpenProject.Revit.LiveSync.Queue
         if (inPart++ > 0) builder.Append(',');
         builder.Append(json); partBytes += jsonBytes; updatedCount++;
         prints[id] = print;
-        if (versioned) { versions.PartVersions[id] = entry; if (force) versions.PartForce.Add(id); }
+        if (versioned)
+        {
+          versions.PartVersions[id] = entry; if (force) versions.PartForce.Add(id);
+          var (geometryPrint, parameterPrint) = AspectPrints(captured);
+          versions.PartPrints[id] = new[] { geometryPrint, parameterPrint };
+          if (versions.LastAspects.Contains("g") && JoinedOf(id) is { Count: > 0 } joined) versions.PartJoined[id] = joined;
+        }
         if (updatedCount == updatedTotal || updatedCount % 25 == 0)
           progress?.Invoke(updatedCount, preparationTotal, totalBytes + partBytes + (compactor?.Bytes ?? 0));
       }

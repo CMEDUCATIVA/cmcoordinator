@@ -109,6 +109,8 @@ namespace OpenProject.Revit.LiveSync.Presentation
         "host" => "cambió por su anfitrión",
         "hostRejected" => "su anfitrión no entró",
         "removed" => $"lo borró {who}",
+        "joined" => "iba unido a otro que no entró",
+        "restored" => $"{who} restauró el modelo",
         _ => $"lo cambió {who}"
       };
       return $"{(string.IsNullOrWhiteSpace(item.Name) ? item.Id : item.Name)} · {reason}{(item.Partial ? " · entró el resto" : "")}";

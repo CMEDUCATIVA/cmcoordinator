@@ -112,7 +112,8 @@ namespace OpenProject.Revit.LiveSync.Queue
     public string Id { get; set; }
     public string Name { get; set; }
     // stale: changed by someone after this person's version · host: changed by its host · hostRejected: its host stayed
-    // out · removed: deleted by someone after this person's version.
+    // out · removed: deleted by someone after this person's version · joined: changed along with one that stayed out ·
+    // restored: its version was raised by a restoration of the model.
     public string Reason { get; set; }
     public string By { get; set; }
     public string At { get; set; }
@@ -130,6 +131,14 @@ namespace OpenProject.Revit.LiveSync.Queue
     [JsonIgnore] public string Attempt { get; set; }
   }
 
+  /// <summary>8.J: a change Cmcoordinator kept out without sending it, as it is told to the CDE.</summary>
+  public sealed class WithheldReport
+  {
+    [JsonProperty("id")] public string Id { get; set; }
+    [JsonProperty("name")] public string Name { get; set; }
+    [JsonProperty("reason")] public string Reason { get; set; }
+    [JsonProperty("aspects")] public string[] Aspects { get; set; }
+  }
   /// <summary>Contract 1: the old huella of an element in the CDE and the one that replaces it.</summary>
   public sealed class PrintUpgrade
   {

@@ -18,7 +18,8 @@ namespace OpenProject.Revit.LiveSync.Queue
       CREATE TABLE IF NOT EXISTS known (id TEXT PRIMARY KEY,vg INTEGER NOT NULL,vp INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS baseline_aspects (id TEXT PRIMARY KEY,g TEXT NOT NULL,p TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS differs (id TEXT PRIMARY KEY,name TEXT,reason TEXT,who TEXT,at TEXT,partial INTEGER NOT NULL DEFAULT 0);
-      CREATE TABLE IF NOT EXISTS forced (id TEXT PRIMARY KEY);");
+      CREATE TABLE IF NOT EXISTS forced (id TEXT PRIMARY KEY);
+      CREATE TABLE IF NOT EXISTS joins (id TEXT PRIMARY KEY,json TEXT NOT NULL);");
 
     private void EnsureVersionColumns()
     {
@@ -43,6 +44,15 @@ namespace OpenProject.Revit.LiveSync.Queue
     public static string SemanticPrint(string json)
     {
       var element = JObject.Parse(json);
+      var (looks, shape) = ShapeOf(element);
+      var values = (element["properties"] as JObject)?.Properties().Where(property => !VersionOnlyProperties.Contains(property.Name))
+        .Select(property => PrintValue(property.Value.ToString())).OrderBy(value => value, StringComparer.Ordinal) ?? Enumerable.Empty<string>();
+      var identity = element.Value<string>("name") + "|" + element.Value<string>("category") + "|" + looks;
+      return SyncEncoding.Hash(identity + "|" + shape + "|" + string.Join("|", values)).Substring(0, FingerprintLength);
+    }
+
+    private static (string Looks, string Shape) ShapeOf(JObject element)
+    {
       var points = new HashSet<(double, double, double)>();
       var looks = new SortedSet<string>(StringComparer.Ordinal);
       foreach (var mesh in element["meshes"] ?? new JArray())
@@ -56,10 +66,42 @@ namespace OpenProject.Revit.LiveSync.Queue
         points.Min(p => p.Item1), points.Min(p => p.Item2), points.Min(p => p.Item3), points.Max(p => p.Item1), points.Max(p => p.Item2), points.Max(p => p.Item3),
         Round(points.Average(p => p.Item1), 2), Round(points.Average(p => p.Item2), 2), Round(points.Average(p => p.Item3), 2)
       }.Select(value => value.ToString("R", CultureInfo.InvariantCulture)));
-      var values = (element["properties"] as JObject)?.Properties().Where(property => !VersionOnlyProperties.Contains(property.Name))
+      return (string.Join(",", looks), shape);
+    }
+
+    /// <summary>
+    /// The huella of each aspect, the same in every Revit year: the CDE keeps the one of whoever sent that aspect last, so an
+    /// element made of two people's changes can still be recognized. What follows the geometry does not count as parameters.
+    /// </summary>
+    public static (string Geometry, string Parameters) AspectPrints(string json)
+    {
+      var element = JObject.Parse(json);
+      var (looks, shape) = ShapeOf(element);
+      var derived = DerivedNames(element);
+      var values = (element["properties"] as JObject)?.Properties().Where(property => !VersionOnlyProperties.Contains(property.Name) && !derived.Contains(property.Name))
         .Select(property => PrintValue(property.Value.ToString())).OrderBy(value => value, StringComparer.Ordinal) ?? Enumerable.Empty<string>();
-      var identity = element.Value<string>("name") + "|" + element.Value<string>("category") + "|" + string.Join(",", looks);
-      return SyncEncoding.Hash(identity + "|" + shape + "|" + string.Join("|", values)).Substring(0, FingerprintLength);
+      var identity = element.Value<string>("name") + "|" + element.Value<string>("category");
+      return (SyncEncoding.Hash(identity + "|" + looks + "|" + shape).Substring(0, FingerprintLength),
+        SyncEncoding.Hash(identity + "|" + string.Join("|", values)).Substring(0, FingerprintLength));
+    }
+
+    private static HashSet<string> DerivedNames(JObject element)
+    {
+      var derived = new HashSet<string>(StringComparer.Ordinal) { "Peso", "Peso exacto", "Área de pintura" };
+      foreach (var parameter in ((element["bim"] as JObject)?["parameters"] as JArray)?.OfType<JObject>() ?? Enumerable.Empty<JObject>())
+        if (parameter.Value<string>("groupId")?.Contains(":dimensions-") == true) derived.Add(parameter.Value<string>("name") ?? "");
+      return derived;
+    }
+
+    private void SaveJoined(string id, IReadOnlyCollection<string> joined)
+    {
+      if (joined == null || joined.Count == 0) Execute("DELETE FROM joins WHERE id=$id", ("$id", id));
+      else Execute("INSERT OR REPLACE INTO joins VALUES($id,$json)", ("$id", id), ("$json", JsonConvert.SerializeObject(joined)));
+    }
+    private List<string> JoinedOf(string id)
+    {
+      using var cmd = Command("SELECT json FROM joins WHERE id=$id", ("$id", id));
+      return cmd.ExecuteScalar() is string json ? JsonConvert.DeserializeObject<List<string>>(json) : null;
     }
     // Adding 0.0 turns -0 into 0, so an element at the origin prints the same on both sides.
     private static double Round(double value, int decimals) => Math.Round(value, decimals) + 0.0;
@@ -185,10 +227,60 @@ namespace OpenProject.Revit.LiveSync.Queue
         Execute("DELETE FROM differs WHERE id=$id", ("$id", id));
         if (prints.Versions.TryGetValue(id, out var version) && version?.Length >= 2) SetKnown(id, version[0] ?? 0, version[1] ?? 0, Number(version));
       }
+      CatchUp(prints, remote);
       RefreshDiffering(prints, remote);
       RefreshNumbers(prints);
       transaction.Commit();
       return resolved;
+    }
+
+    // F4 and F6: this Revit may hold what the CDE has even if the CDE's version went up (a restoration, or someone leaving the
+    // same result). Each aspect that is the same starts from the CDE's version; what is different stays where it was.
+    private void CatchUp(RemoteFingerprints prints, IReadOnlyDictionary<string, string> remote)
+    {
+      var behind = new List<(string Id, long G, long P)>();
+      using (var cmd = Command("SELECT id,vg,vp FROM known"))
+      using (var reader = cmd.ExecuteReader())
+        while (reader.Read())
+        {
+          var id = reader.GetString(0);
+          if (prints.Versions.TryGetValue(id, out var version) && version?.Length >= 2 && (reader.GetInt64(1) < (version[0] ?? 0) || reader.GetInt64(2) < (version[1] ?? 0)))
+            behind.Add((id, reader.GetInt64(1), reader.GetInt64(2)));
+        }
+      foreach (var (id, g, p) in behind)
+      {
+        var version = prints.Versions[id];
+        string confirmed = null, desired = null, desiredHash = null;
+        using (var cmd = Command("SELECT c.json,d.json,d.hash FROM desired d LEFT JOIN confirmed c ON d.id=c.id WHERE d.id=$id", ("$id", id)))
+        using (var reader = cmd.ExecuteReader())
+        {
+          if (!reader.Read()) continue;
+          confirmed = reader.IsDBNull(0) ? null : reader.GetString(0); desired = reader.GetString(1); desiredHash = reader.GetString(2);
+        }
+        var sameWhole = remote.TryGetValue(id, out var print) && SamePrint(print, desiredHash);
+        prints.AspectPrints.TryGetValue(id, out var remoteAspects);
+        var mine = PrintsHeld(confirmed, desired);
+        var sameG = sameWhole || remoteAspects?.Length == 2 && mine.Contains(("g", remoteAspects[0]));
+        var sameP = sameWhole || remoteAspects?.Length == 2 && mine.Contains(("p", remoteAspects[1]));
+        var newG = sameG ? Math.Max(g, version[0] ?? 0) : g; var newP = sameP ? Math.Max(p, version[1] ?? 0) : p;
+        if (newG == g && newP == p) continue;
+        SetKnown(id, newG, newP, newG == (version[0] ?? 0) && newP == (version[1] ?? 0) ? Number(version) : KnownNumber(id));
+        // What was kept out for starting from an old version can enter now. It goes with the next send.
+        if (newG == (version[0] ?? 0) && newP == (version[1] ?? 0) && Execute("DELETE FROM differs WHERE id=$id AND reason IN ('stale','restored','joined')", ("$id", id)) > 0) Set("dirty", "1");
+      }
+    }
+
+    // What this Revit really holds of an element: its last confirmed state and what it has now.
+    private static HashSet<(string, string)> PrintsHeld(string confirmed, string desired)
+    {
+      var held = new HashSet<(string, string)>();
+      foreach (var json in new[] { confirmed, desired })
+      {
+        if (json == null) continue;
+        var (g, p) = AspectPrints(json);
+        held.Add(("g", g)); held.Add(("p", p));
+      }
+      return held;
     }
 
     // Position 5 of a version entry: the visible number of the element. Servers that do not send it leave it unknown.
@@ -248,7 +340,7 @@ namespace OpenProject.Revit.LiveSync.Queue
     }
 
     /// <summary>Whether some element of this Revit still starts from an old copy of the CDE's (known -1).</summary>
-    public bool HasOldCopies { get { using var cmd = Command("SELECT EXISTS(SELECT 1 FROM known WHERE vg=-1)"); return Convert.ToInt32(cmd.ExecuteScalar()) == 1; } }
+    public bool HasOldCopies { get { using var cmd = Command("SELECT EXISTS(SELECT 1 FROM known WHERE vg=-1) OR EXISTS(SELECT 1 FROM differs)"); return Convert.ToInt32(cmd.ExecuteScalar()) == 1; } }
 
     private void SetKnown(string id, long g, long p, long? n = null) =>
       Execute("INSERT OR REPLACE INTO known(id,vg,vp,n) VALUES($id,$g,$p,$n)", ("$id", id), ("$g", g), ("$p", p), ("$n", n));
@@ -379,7 +471,13 @@ namespace OpenProject.Revit.LiveSync.Queue
       public IReadOnlyDictionary<string, string> Times { get; set; } = new Dictionary<string, string>();
       public ISet<string> Gone { get; set; } = new HashSet<string>();
       public bool CanForce { get; set; }
+      public long? RestoredClock { get; set; }
       internal HashSet<string> Forced { get; } = new();
+      internal Dictionary<string, string[]> PartPrints { get; } = new();
+      internal Dictionary<string, List<string>> PartJoined { get; } = new();
+      // Geometry kept out without travelling: the CDE leaves out with it what is joined to it (F7).
+      internal HashSet<string> WithheldGeometry { get; } = new();
+      internal string LastAspects { get; set; } = "";
       internal Dictionary<string, object> PartVersions { get; } = new();
       internal List<string> PartForce { get; } = new();
       internal HashSet<string> Emitted { get; } = new();
@@ -391,11 +489,15 @@ namespace OpenProject.Revit.LiveSync.Queue
     // CDE's versions are known, since it may enter now; one the CDE refused for its host or in part waits for a new edit.
     private bool AlreadyOut(VersionPlan plan, string id, string attempt)
     {
-      using var cmd = Command("SELECT reason,partial,hash FROM differs WHERE id=$id", ("$id", id));
+      using var cmd = Command("SELECT reason,partial,hash,aspects FROM differs WHERE id=$id", ("$id", id));
       using var reader = cmd.ExecuteReader();
       if (!reader.Read() || reader.IsDBNull(2) || reader.GetString(2) != attempt) return false;
+      if (reader.IsDBNull(3) || reader.GetString(3).Split(',').Contains("g")) plan.WithheldGeometry.Add(id);
       if (plan.Remote == null) return true;
-      return reader.GetInt32(1) == 1 || reader.GetString(0) is not ("stale" or "removed");
+      var reason = reader.GetString(0);
+      // What is joined to one that is still out waits for it: sending it again would only be refused again.
+      if (reason == "joined") return JoinedOf(id)?.Any(other => { using var still = Command("SELECT 1 FROM differs WHERE id=$id", ("$id", other)); return still.ExecuteScalar() != null; }) == true;
+      return reader.GetInt32(1) == 1 || reason is not ("stale" or "removed" or "restored");
     }
 
     // What the element carries ({a, bg, bp}), or null when its change would not enter (it is listed as differing instead).
@@ -418,6 +520,8 @@ namespace OpenProject.Revit.LiveSync.Queue
       using (var reader = cmd.ExecuteReader()) if (reader.Read()) { bg = reader.GetInt64(0); bp = reader.GetInt64(1); mine = reader.IsDBNull(2) ? null : reader.GetInt64(2); }
       if (!forced && Stale(plan, id, changed, bg, bp, mine, json, hash)) return null;
       plan.Emitted.Add(id);
+      plan.LastAspects = changed;
+      plan.WithheldGeometry.Remove(id);
       return new { a = changed, bg, bp };
     }
 
@@ -425,12 +529,21 @@ namespace OpenProject.Revit.LiveSync.Queue
     private bool Stale(VersionPlan plan, string id, string changed, long bg, long bp, long? mine, string json, string hash)
     {
       if (plan.Remote == null) return false;
-      string reason = null; long? author = null; long? theirs = null;
+      string reason = null; long? author = null; long? theirs = null; var geometryOut = false;
       if (plan.Remote.TryGetValue(id, out var current) && current?.Length >= 2)
       {
         var staleG = changed.Contains("g") && bg < (current[0] ?? 0);
         var staleP = changed.Contains("p") && bp < (current[1] ?? 0);
-        if ((staleG || !changed.Contains("g")) && (staleP || !changed.Contains("p"))) { reason = "stale"; author = current.Length > 2 ? current[2] : null; theirs = Number(current); }
+        if ((staleG || !changed.Contains("g")) && (staleP || !changed.Contains("p")))
+        {
+          geometryOut = staleG;
+          // F3: who changed the aspect that stayed out, and whether a host moved that geometry.
+          reason = plan.RestoredClock != null && ((staleG && current[0] == plan.RestoredClock) || (staleP && current[1] == plan.RestoredClock)) ? "restored"
+            : staleG && current.Length > 8 && current[8] == 1 ? "host" : "stale";
+          author = current.Length > 7 ? (staleG ? current[6] : current[7]) : current.Length > 2 ? current[2] : null;
+          author ??= current.Length > 2 ? current[2] : null;
+          theirs = Number(current);
+        }
       }
       else if (plan.Gone.Contains(id)) reason = "removed";
       if (reason == null) return false;
@@ -438,8 +551,10 @@ namespace OpenProject.Revit.LiveSync.Queue
       try { name = JObject.Parse(json).Value<string>("name"); } catch (JsonException) { }
       plan.Authors.TryGetValue(author?.ToString() ?? "", out var by);
       plan.Times.TryGetValue(id, out var at);
-      AddDiffering(new DifferingElement { Id = id, Name = name, Reason = reason, By = by, At = at, Attempt = hash, Mine = mine, Theirs = theirs,
-        Aspects = changed.Select(aspect => aspect.ToString()).ToArray() });
+      var aspects = changed.Select(aspect => aspect.ToString()).ToArray();
+      RememberWithheld(id, name, reason, aspects, hash);
+      AddDiffering(new DifferingElement { Id = id, Name = name, Reason = reason, By = by, At = at, Attempt = hash, Mine = mine, Theirs = theirs, Aspects = aspects });
+      if (geometryOut || reason == "removed") plan.WithheldGeometry.Add(id);
       plan.Withheld.Add(id);
       plan.Predicted++;
       return true;
@@ -458,6 +573,7 @@ namespace OpenProject.Revit.LiveSync.Queue
       {
         plan.Authors.TryGetValue((current.Length > 2 ? current[2] : null)?.ToString() ?? "", out var by);
         plan.Times.TryGetValue(id, out var at);
+        RememberWithheld(id, NameIn("confirmed", id), "stale", new[] { DifferingElement.RemovalAspect }, "");
         AddDiffering(new DifferingElement { Id = id, Name = NameIn("confirmed", id), Reason = "stale", By = by, At = at, Attempt = "",
           Aspects = new[] { DifferingElement.RemovalAspect }, Mine = KnownNumber(id), Theirs = Number(current) });
         plan.Withheld.Add(id);
@@ -469,6 +585,22 @@ namespace OpenProject.Revit.LiveSync.Queue
       return true;
     }
 
+
+    // 8.J: a change that stays out for the first time will be told to the CDE; the same change, looked at again, is not news.
+    private void RememberWithheld(string id, string name, string reason, string[] aspects, string attempt)
+    {
+      using (var known = Command("SELECT 1 FROM differs WHERE id=$id AND hash=$hash", ("$id", id), ("$hash", attempt)))
+        if (known.ExecuteScalar() != null) return;
+      var list = PendingWithheld.ToList();
+      list.Add(new WithheldReport { Id = id, Name = name, Reason = reason, Aspects = aspects });
+      Set("withheldPending", JsonConvert.SerializeObject(list.Skip(Math.Max(0, list.Count - WithheldKept)).ToList()));
+    }
+    private const int WithheldKept = 1000;
+
+    /// <summary>What stayed out without travelling and the CDE does not know yet.</summary>
+    public IReadOnlyList<WithheldReport> PendingWithheld =>
+      JsonConvert.DeserializeObject<List<WithheldReport>>(Get("withheldPending") ?? "[]") ?? new List<WithheldReport>();
+    public void ClearWithheld(int count) => Set("withheldPending", JsonConvert.SerializeObject(PendingWithheld.Skip(count).ToList()));
 
     private void LoadForced(VersionPlan plan)
     {
