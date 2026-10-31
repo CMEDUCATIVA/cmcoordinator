@@ -437,6 +437,11 @@ namespace OpenProject.Revit.LiveSync.Queue
       ("$id", item.Id), ("$name", item.Name), ("$reason", item.Reason ?? "stale"), ("$who", item.By), ("$at", item.At), ("$partial", item.Partial ? 1 : 0),
       ("$hash", item.Attempt ?? ""), ("$aspects", item.Aspects == null ? null : string.Join(",", item.Aspects)), ("$mine", item.Mine), ("$theirs", item.Theirs));
 
+    public int DesiredCount
+    {
+      get { using var cmd = Command("SELECT COUNT(*) FROM desired"); return Convert.ToInt32(cmd.ExecuteScalar()); }
+    }
+
     public IReadOnlyList<DifferingElement> Differs
     {
       get
@@ -454,6 +459,25 @@ namespace OpenProject.Revit.LiveSync.Queue
 
 
     /// <summary>Administración: the next publication carries these elements with «force» (UI-8 case 17).</summary>
+    /// <summary>After this Revit restored the model: what it holds and the restored model lost. Nothing is sent by itself; forcing brings it back.</summary>
+    public int ListNotRestored(RemoteFingerprints prints)
+    {
+      if (prints?.Removed == null || prints.Removed.Count == 0) return 0;
+      var gone = new HashSet<string>(prints.Removed);
+      var rows = new List<(string Id, string Hash, string Json)>();
+      using (var cmd = Command("SELECT d.id,d.hash,d.json FROM desired d LEFT JOIN differs x ON d.id=x.id WHERE x.id IS NULL"))
+      using (var reader = cmd.ExecuteReader()) while (reader.Read()) if (gone.Contains(reader.GetString(0))) rows.Add((reader.GetString(0), reader.GetString(1), reader.GetString(2)));
+      using var transaction = _db.BeginTransaction();
+      foreach (var (id, hash, json) in rows)
+      {
+        string name = null;
+        try { name = JObject.Parse(json).Value<string>("name"); } catch (JsonException) { }
+        AddDiffering(new DifferingElement { Id = id, Name = name, Reason = "notRestored", Attempt = hash, Aspects = new[] { "g", "p" } });
+      }
+      transaction.Commit();
+      return rows.Count;
+    }
+
     public int Force(IEnumerable<string> ids)
     {
       using var transaction = _db.BeginTransaction();

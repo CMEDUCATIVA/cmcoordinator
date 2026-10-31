@@ -69,6 +69,8 @@ namespace OpenProject.Revit.LiveSync.Presentation
     public string ReplaceHint => SyncChosen ? "Ya estás unido al modelo con Sincronizar. Para reemplazarlo, desconecta y vuelve a conectar."
       : "Quita el modelo del CDE y publica tu captura completa (queda un punto de restauración)";
     public Visibility ReplaceVisibility => IsCdeConnected && !IsRevoked && Access.CanReplace ? Visibility.Visible : Visibility.Collapsed;
+    // A button that is off says why where it can be read, not only when the pointer rests on it.
+    public Visibility ReplaceNoteVisibility => ReplaceVisibility == Visibility.Visible && SyncChosen ? Visibility.Visible : Visibility.Collapsed;
     // One level of undo after a replacement: Administración returns the CDE model to what it replaced.
     public bool CanRestore => ReplaceAvailable && Access.CanRestore;
     public Visibility RestoreVisibility => IsCdeConnected && !IsRevoked && Access.CanRestore ? Visibility.Visible : Visibility.Collapsed;
@@ -111,6 +113,7 @@ namespace OpenProject.Revit.LiveSync.Presentation
         "removed" => $"lo borró {who}",
         "joined" => "iba unido a otro que no entró",
         "restored" => $"{who} restauró el modelo",
+        "notRestored" => "no está en el modelo restaurado",
         _ => $"lo cambió {who}"
       };
       return $"{(string.IsNullOrWhiteSpace(item.Name) ? item.Id : item.Name)} · {reason}{(item.Partial ? " · entró el resto" : "")}";
@@ -290,7 +293,7 @@ namespace OpenProject.Revit.LiveSync.Presentation
         }
         SyncIndicatorBrush = TransferBrush;
         foreach (var name in new[] { nameof(Model), nameof(DocumentTitle), nameof(RevitState), nameof(SyncIndicatorBrush), nameof(SyncIndicatorLabel), nameof(Capture), nameof(Status), nameof(PauseLabel), nameof(ShowPlayIcon), nameof(CanSynchronize), nameof(SyncLabel), nameof(CanPause), nameof(CanStop), nameof(CanRestartCapture), nameof(TransferTitle), nameof(TransferDetail), nameof(TransferBrush), nameof(TransferProgressVisibility), nameof(TransferIndeterminate), nameof(TransferPercent), nameof(TransferFraction), nameof(TransferPercentLabel), nameof(CapturedCount), nameof(StoredRevision), nameof(DisplayedRevision), nameof(PendingLabel), nameof(BlockLabel), nameof(CdeSession),
-          nameof(Access), nameof(SyncHint), nameof(GroupLabel), nameof(GroupVisibility), nameof(GroupHint), nameof(CanReplace), nameof(ReplaceVisibility), nameof(NoticeKind), nameof(NoticeVisibility), nameof(NoticeTitle), nameof(NoticeText),
+          nameof(Access), nameof(SyncHint), nameof(GroupLabel), nameof(GroupVisibility), nameof(GroupHint), nameof(CanReplace), nameof(ReplaceVisibility), nameof(ReplaceNoteVisibility), nameof(NoticeKind), nameof(NoticeVisibility), nameof(NoticeTitle), nameof(NoticeText),
           nameof(IsRevoked), nameof(CanRestore), nameof(RestoreVisibility), nameof(IsLive), nameof(ReplaceHint), nameof(IdentityName), nameof(SyncButtonEnabled),
           nameof(Differs), nameof(DiffersVisibility), nameof(DiffersTitle), nameof(DiffersText), nameof(DiffersLines), nameof(ForceVisibility) })
           PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

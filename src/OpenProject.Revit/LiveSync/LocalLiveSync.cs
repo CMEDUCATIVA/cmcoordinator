@@ -79,8 +79,8 @@ namespace OpenProject.Revit.LiveSync
       var worker = _worker;
       await worker.RestoreAsync().ConfigureAwait(true);
       if (worker != _worker) return;
-      LiveMode = false; worker.Pause(true);
-      _message = "Modelo restaurado en el CDE · sincronización en pausa; al reanudar se envía lo que falte de tu vista 3D";
+      LiveMode = false; worker.Pause(true); _syncChosen = false;
+      _message = "Modelo restaurado en el CDE · sincronización en pausa; lo que tu Revit tiene y el modelo restaurado no, aparece en la lista y no se envía solo";
       _telemetry?.Emit("control", "MODEL_RESTORED", "Modelo restaurado al punto anterior al último reemplazo; sincronización en pausa");
     }
     public static void ConnectDestination(CdeDestination destination)

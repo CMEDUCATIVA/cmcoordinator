@@ -102,6 +102,27 @@ namespace OpenProject.Tests.LiveSync
     [Fact]
     public void TheRealReceiverTellsWhatStayedOut() => Assert.True(typeof(ISyncWithheld).IsAssignableFrom(typeof(SyncReceiver)));
 
+    // Found on 31/10: after a restoration the panel said all was the same while Revit held 3 walls the CDE had lost.
+    [Fact]
+    public void WhatARestorationLeftOutIsListedSentOnlyIfForced()
+    {
+      using var folder = new OutboxTests.TestFolder();
+      using var outbox = new SqliteOutbox(folder.Path);
+      var wall = Element("W1");
+      outbox.Save(Snapshot(wall));
+      outbox.RecordBaseline();
+      var restored = Remote(new());
+      restored.Removed = new List<string> { "W1", "ajeno" };
+      Assert.Equal(1, outbox.ListNotRestored(restored));
+      Assert.Equal("notRestored", outbox.Differs.Single().Reason);
+      Assert.Equal(0, outbox.ListNotRestored(restored));
+      Assert.Null(Prepare(outbox, restored));
+      outbox.Force(new[] { "W1" });
+      var job = outbox.Prepare("s", 1, "rev", false, merge: true, remote: restored.Fingerprints, gone: restored.Removed, remoteCatalog: SyncEncoding.Hash(outbox.Get("bim") ?? "null"),
+        versions: new SqliteOutbox.VersionPlan { Remote = restored.Versions, Authors = restored.Authors, CanForce = true, Gone = new HashSet<string>(restored.Removed) });
+      Assert.NotNull(ElementsPart(outbox, job)["versions"]["W1"]);
+    }
+
     // F4: what is different from the restored model stays out and says why, once.
     [Fact]
     public void WhatDiffersFromTheRestoredModelStaysOutAsRestoredAndIsToldOnce()

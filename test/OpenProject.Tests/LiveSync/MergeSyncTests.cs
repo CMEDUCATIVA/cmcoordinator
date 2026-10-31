@@ -149,6 +149,11 @@ namespace OpenProject.Tests.LiveSync
         await Until(() => cde.Committed.Count == 3);
         Assert.True(cde.LastJob.Reset);
         Assert.Equal(new[] { "a" }, cde.Scene.Keys);
+        // Found on 31/10: an empty capture emptied a model of 42 elements, and a second one took its restore point.
+        francis.Submit(Snapshot()); francis.RequestReplace();
+        await Until(() => francis.Progress.Stage == SyncWorker.ReplaceRefusedStage);
+        Assert.Equal(3, cde.Committed.Count);
+        Assert.Equal(new[] { "a" }, cde.Scene.Keys);
       }
       finally { await Stop(francis); }
       var editor = new SyncWorker(jenniferFolder.Path, cde.For("jennifer"), new RecordingLog());

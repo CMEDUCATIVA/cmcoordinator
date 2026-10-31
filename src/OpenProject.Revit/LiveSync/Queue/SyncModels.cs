@@ -113,7 +113,8 @@ namespace OpenProject.Revit.LiveSync.Queue
     public string Name { get; set; }
     // stale: changed by someone after this person's version · host: changed by its host · hostRejected: its host stayed
     // out · removed: deleted by someone after this person's version · joined: changed along with one that stayed out ·
-    // restored: its version was raised by a restoration of the model.
+    // restored: its version was raised by a restoration of the model · notRestored: this Revit holds it and the model it
+    // restored does not.
     public string Reason { get; set; }
     public string By { get; set; }
     public string At { get; set; }

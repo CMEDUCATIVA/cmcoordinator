@@ -47,6 +47,7 @@ namespace OpenProject.Revit.LiveSync.Presentation
         "host" => "El elemento que lo aloja cambió después de tu versión; este lo siguió.",
         "hostRejected" => "El elemento que lo aloja tampoco entró, así que este queda fuera con él.",
         "removed" => $"{who} borró este elemento después de tu versión.",
+        "notRestored" => "Está en tu Revit, pero no en el modelo restaurado. No se envía solo: fuérzalo si debe volver al modelo.",
         "joined" => "Iba unido a otro elemento que no entró; queda fuera con él para que no se rompa la unión.",
         "restored" => $"{who} restauró el modelo después de tu versión; tu elemento es distinto del restaurado.",
         _ when IsRemoval(item) => $"{who} cambió este elemento después de tu versión, así que tu borrado no entró.",

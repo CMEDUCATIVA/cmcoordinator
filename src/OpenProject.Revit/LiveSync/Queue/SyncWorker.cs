@@ -65,6 +65,9 @@ namespace OpenProject.Revit.LiveSync.Queue
     public const string ElementVersionsFeature = "elementVersions";
     // 8.J: the CDE records what stayed out without being sent.
     public const string WithheldReportFeature = "withheldReport";
+    public const string ReplaceRefusedStage = "Reemplazo cancelado";
+    public const string ReplaceRefusedDetail = "Tu vista 3D no tiene elementos, así que no se reemplazó nada: el modelo del CDE sigue igual.";
+    private volatile bool _replaceRefused;
     private const int WithheldBatch = 200;
     // Contract 1: the CDE accepts replacing the old huellas of its elements.
     public const string PrintUpgradeFeature = "printUpgrade";
@@ -131,7 +134,7 @@ namespace OpenProject.Revit.LiveSync.Queue
     }
     public void RequestPublish()
     {
-      _attention = false; _revoked = false; _paused = false; _publishRequested = true;
+      _attention = false; _revoked = false; _paused = false; _publishRequested = true; _replaceRefused = false;
       Interlocked.Increment(ref _retry);
       var previous = _progress;
       _progress = new SyncProgress { Stage = "Solicitud de sincronización", Detail = "Esperando la captura local más reciente",
@@ -278,6 +281,7 @@ namespace OpenProject.Revit.LiveSync.Queue
           {
             if (CdeModelAccess.From(remote).ReadOnly) Report(outbox, "Solo lectura", ReadOnlyDetail, remote);
             else if (_needsConfirmation) Report(outbox, ConfirmStage, ConfirmDetail(_comparison), remote);
+            else if (_replaceRefused) Report(outbox, ReplaceRefusedStage, ReplaceRefusedDetail, remote);
             else Report(outbox, outbox.HasPending ? "Listo para sincronizar" : "Al día",
               outbox.HasPending ? "Captura guardada localmente · pulsa Sincronizar para publicarla" : "Sin cambios pendientes de publicación",
               remote);
@@ -293,6 +297,13 @@ namespace OpenProject.Revit.LiveSync.Queue
           if (job == null && due)
           {
             if (remote.SessionStartedAt > _started) throw new ReceiverException(403);
+            // A replacement with nothing in the capture would only empty the model for everyone, and take its restore point with it.
+            if (_replace && outbox.DesiredCount == 0)
+            {
+              _replace = false; _publishRequested = false; _replaceRefused = true;
+              _log.Emit("queue", "REPLACE_EMPTY_REFUSED", "Reemplazo cancelado: la vista 3D no tiene elementos; el modelo del CDE no se toca");
+              continue;
+            }
             // Replace only on request or to fill an empty model; otherwise continue on the revision of the CDE.
             var reset = merging ? _replace || remote.RevisionId == null
               : remote.RevisionId != outbox.Get("revision") || remote.SourceId != outbox.Get("source") || remote.SessionId != _session;
@@ -486,12 +497,29 @@ namespace OpenProject.Revit.LiveSync.Queue
           if (_receiver is not ISyncRestore restorer) throw new ReceiverException(404, 0, "Este CDE no guarda puntos de restauración");
           await restorer.RestoreAsync(_cancel.Token).ConfigureAwait(false);
           _restorePoint = null; changed = true;
+          await ListWhatTheRestorationLeftOutAsync(outbox).ConfigureAwait(false);
           _log.Emit("transport", "MODEL_RESTORED", "Modelo devuelto al punto de restauración del último reemplazo");
           restore.TrySetResult(true);
         }
         catch (Exception error) { restore.TrySetException(error); }
       }
       return changed;
+    }
+    // What this Revit holds and the restored model does not is shown; the panel must not say that all is the same. A failure only leaves it unlisted.
+    private async Task ListWhatTheRestorationLeftOutAsync(SqliteOutbox outbox)
+    {
+      if (_receiver is not ISyncFingerprints source) return;
+      try
+      {
+        var prints = await source.FingerprintsAsync(_cancel.Token).ConfigureAwait(false);
+        outbox.ResolveKnown(prints);
+        var listed = outbox.ListNotRestored(prints);
+        if (listed > 0) _log.Emit("queue", "NOT_RESTORED_LISTED", $"{listed:N0} elementos de este Revit no están en el modelo restaurado");
+      }
+      catch (Exception error) when (error is System.Net.Http.HttpRequestException or TaskCanceledException or ReceiverException)
+      {
+        _log.Emit("queue", "NOT_RESTORED_UNKNOWN", "No se pudo comparar con el modelo restaurado: " + error.Message);
+      }
     }
     /// <summary>What the last local capture is against the CDE revision (huellas); without a capture only the size is known.</summary>
     private static ReplacePreview Compare(SqliteOutbox outbox, ReceiverStatus status, RemoteFingerprints prints)

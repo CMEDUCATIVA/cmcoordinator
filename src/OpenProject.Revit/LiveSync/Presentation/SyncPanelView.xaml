@@ -262,6 +262,7 @@
      <TextBlock Text="Reemplazar modelo…" FontSize="12" VerticalAlignment="Center"/>
     </StackPanel>
    </Button>
+   <TextBlock Text="{Binding ReplaceHint,Mode=OneWay}" Visibility="{Binding ReplaceNoteVisibility,Mode=OneWay}" TextWrapping="Wrap" FontSize="11" Margin="0,-8,0,14" Opacity="0.8"/>
    <Button Style="{StaticResource SquareButton}" Tag="restore" Click="RestoreClick" Margin="0,-6,0,14" HorizontalAlignment="Stretch"
      Visibility="{Binding RestoreVisibility,Mode=OneWay}" IsEnabled="{Binding CanRestore,Mode=OneWay}"
      ToolTip="Devuelve el modelo del CDE a como estaba antes del último reemplazo" AutomationProperties.Name="Restaurar modelo anterior">
