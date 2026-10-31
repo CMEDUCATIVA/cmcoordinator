@@ -265,6 +265,8 @@ namespace OpenProject.Revit.LiveSync
           }
           else if (action is "sync" or "retry") { _syncChosen = true; Synchronize(); }
           // UI-8 #29: the person accepted sending a first merge that differs from the CDE in nearly everything.
+          else if (action == "confirmEmpty") { if (_worker.Access.CanReplace) _worker.ConfirmEmptyReplace(); }
+          else if (action == "cancelEmpty") _worker.CancelEmptyReplace();
           else if (action == "confirmMerge") { _syncChosen = true; _worker.ConfirmFullMerge(); Synchronize(); }
           // UI-8 logic 8: the elements whose change did not enter the CDE, selected in Revit so the person sees them.
           else if (action == "selectDiffers") SelectDiffering(app);

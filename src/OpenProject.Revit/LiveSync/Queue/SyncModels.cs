@@ -102,6 +102,8 @@ namespace OpenProject.Revit.LiveSync.Queue
     public bool Joined { get; init; }
     // The first merge would send nearly the whole model: it waits for the person to confirm (UI-8 #29).
     public bool NeedsConfirmation { get; init; }
+    // A replacement with an empty capture waits here: the elements of the CDE model it would remove.
+    public int EmptyToConfirm { get; init; }
     // UI-8 logic 8: elements of this Revit that differ from the CDE because their change stayed out (or would).
     public IReadOnlyList<DifferingElement> Differs { get; init; } = Array.Empty<DifferingElement>();
   }

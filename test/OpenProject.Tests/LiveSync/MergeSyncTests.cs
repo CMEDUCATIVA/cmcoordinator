@@ -149,10 +149,25 @@ namespace OpenProject.Tests.LiveSync
         await Until(() => cde.Committed.Count == 3);
         Assert.True(cde.LastJob.Reset);
         Assert.Equal(new[] { "a" }, cde.Scene.Keys);
-        // Found on 31/10: an empty capture emptied a model of 42 elements, and a second one took its restore point.
-        francis.Submit(Snapshot()); francis.RequestReplace();
-        await Until(() => francis.Progress.Stage == SyncWorker.ReplaceRefusedStage);
+        // Found on 31/10: an empty capture emptied a model of 42 elements without saying so. Now it asks, and asks nothing if there is nothing to remove.
+        francis.AwaitSnapshot(); francis.RequestReplace(); francis.Submit(Snapshot());
+        await Until(() => francis.Progress.EmptyToConfirm > 0);
         Assert.Equal(3, cde.Committed.Count);
+        francis.CancelEmptyReplace();
+        await Until(() => francis.Progress.Stage == SyncWorker.ReplaceRefusedStage && francis.Progress.EmptyToConfirm == 0);
+        Assert.Equal(3, cde.Committed.Count);
+        Assert.Equal(new[] { "a" }, cde.Scene.Keys);
+        francis.RequestReplace();
+        await Until(() => francis.Progress.EmptyToConfirm > 0);
+        francis.ConfirmEmptyReplace();
+        await Until(() => cde.Committed.Count == 4);
+        Assert.True(cde.LastJob.Reset);
+        Assert.Empty(cde.Scene);
+        francis.RequestReplace();
+        await Until(() => francis.Progress.Stage == SyncWorker.ReplaceRefusedStage);
+        Assert.Equal(4, cde.Committed.Count);
+        francis.AwaitSnapshot(); francis.RequestReplace(); francis.Submit(Snapshot(("a", "muro")));
+        await Until(() => cde.Committed.Count == 5);
         Assert.Equal(new[] { "a" }, cde.Scene.Keys);
       }
       finally { await Stop(francis); }
@@ -161,7 +176,7 @@ namespace OpenProject.Tests.LiveSync
       {
         editor.Submit(Snapshot(("a", "muro"))); editor.RequestReplace();
         await Until(() => editor.Progress.Attention);
-        Assert.Equal(3, cde.Committed.Count);
+        Assert.Equal(5, cde.Committed.Count);
       }
       finally { await Stop(editor); }
     }

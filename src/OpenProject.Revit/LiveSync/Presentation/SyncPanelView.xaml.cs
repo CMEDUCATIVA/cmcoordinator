@@ -35,7 +35,7 @@ namespace OpenProject.Revit.LiveSync.Presentation
     // and the next tick tries again.
     private void Refresh()
     {
-      try { RefreshCore(); }
+      try { RefreshCore(); AskEmptyReplace(); }
       catch (Exception error) { Serilog.Log.Warning(error, "No se pudo refrescar el centro de sincronización."); }
     }
     private void RefreshCore()
@@ -197,6 +197,29 @@ namespace OpenProject.Revit.LiveSync.Presentation
       finally { _confirming = false; Refresh(); }
     }
     // UI-8 #29: a first merge that differs from the CDE in nearly everything is sent only after this confirmation.
+    // What a capture holds is known only after capturing, so the question comes when the worker stops to ask it. Cancel is the default.
+    private bool _emptyAsked;
+    private void AskEmptyReplace()
+    {
+      var count = LocalLiveSync.Progress.EmptyToConfirm;
+      if (count == 0) { _emptyAsked = false; return; }
+      if (_emptyAsked || _confirming) return;
+      _emptyAsked = true; _confirming = true;
+      try
+      {
+        var dialog = new TaskDialog("Vaciar modelo")
+        {
+          MainIcon = TaskDialogIcon.TaskDialogIconWarning,
+          MainInstruction = "Vas a dejar el modelo del CDE sin elementos",
+          MainContent = SyncWorker.EmptyConfirmDetail(count),
+          FooterText = "Solo hay un nivel de vuelta atrás: el siguiente Reemplazar con contenido sustituye ese punto.",
+          CommonButtons = TaskDialogCommonButtons.Cancel, DefaultButton = TaskDialogResult.Cancel, AllowCancellation = true
+        };
+        dialog.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, "Vaciar el modelo", "Quita todos los elementos del CDE; las conexiones y la Trazabilidad se conservan");
+        LocalLiveSync.Request(dialog.Show() == TaskDialogResult.CommandLink1 ? "confirmEmpty" : "cancelEmpty");
+      }
+      finally { _confirming = false; }
+    }
     private void ConfirmFullMerge()
     {
       if (_confirming) return;

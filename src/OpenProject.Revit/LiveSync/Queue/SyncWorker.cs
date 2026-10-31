@@ -66,8 +66,12 @@ namespace OpenProject.Revit.LiveSync.Queue
     // 8.J: the CDE records what stayed out without being sent.
     public const string WithheldReportFeature = "withheldReport";
     public const string ReplaceRefusedStage = "Reemplazo cancelado";
-    public const string ReplaceRefusedDetail = "Tu vista 3D no tiene elementos, así que no se reemplazó nada: el modelo del CDE sigue igual.";
-    private volatile bool _replaceRefused;
+    public const string EmptyConfirmStage = "Confirmar vaciado";
+    private const string NothingToEmptyDetail = "Tu vista 3D no tiene elementos y el modelo del CDE ya está vacío: no hay nada que reemplazar.";
+    private const string EmptyCancelledDetail = "Cancelado: el modelo del CDE sigue igual.";
+    private volatile string _replaceNote;
+    private volatile int _emptyToConfirm;
+    private volatile bool _emptyConfirmed;
     private const int WithheldBatch = 200;
     // Contract 1: the CDE accepts replacing the old huellas of its elements.
     public const string PrintUpgradeFeature = "printUpgrade";
@@ -124,7 +128,7 @@ namespace OpenProject.Revit.LiveSync.Queue
         ReceiverRevision = previous.ReceiverRevision, ViewerRevision = previous.ViewerRevision, Jobs = previous.Jobs,
         HasPendingChanges = previous.HasPendingChanges, Drawings = previous.Drawings, DrawingsPending = previous.DrawingsPending, DrawingsSupported = previous.DrawingsSupported, PendingElements = previous.PendingElements,
         BytesDone = previous.BytesDone, BytesTotal = previous.BytesTotal, Access = _access,
-        Comparison = _comparison, Joined = _joined, NeedsConfirmation = _needsConfirmation };
+        Comparison = _comparison, Joined = _joined, NeedsConfirmation = _needsConfirmation, EmptyToConfirm = _emptyToConfirm };
       _log.Emit("queue", value ? "PAUSE" : "RESUME", value ? "Pausa solicitada" : "Continuación solicitada");
     }
     public void HoldForReconciliation()
@@ -134,14 +138,14 @@ namespace OpenProject.Revit.LiveSync.Queue
     }
     public void RequestPublish()
     {
-      _attention = false; _revoked = false; _paused = false; _publishRequested = true; _replaceRefused = false;
+      _attention = false; _revoked = false; _paused = false; _publishRequested = true; _replaceNote = null;
       Interlocked.Increment(ref _retry);
       var previous = _progress;
       _progress = new SyncProgress { Stage = "Solicitud de sincronización", Detail = "Esperando la captura local más reciente",
         Done = 0, Total = 0, Paused = false, Attention = false,
         ReceiverRevision = previous.ReceiverRevision, ViewerRevision = previous.ViewerRevision, Jobs = previous.Jobs,
         HasPendingChanges = previous.HasPendingChanges, Drawings = previous.Drawings, DrawingsPending = previous.DrawingsPending, DrawingsSupported = previous.DrawingsSupported, PendingElements = previous.PendingElements,
-        Access = _access, RestorePoint = _restorePoint, Comparison = _comparison, Joined = _joined, NeedsConfirmation = _needsConfirmation,
+        Access = _access, RestorePoint = _restorePoint, Comparison = _comparison, Joined = _joined, NeedsConfirmation = _needsConfirmation, EmptyToConfirm = _emptyToConfirm,
         Differs = previous.Differs };
       _log.Emit("queue", "PUBLISH_REQUESTED", "Sincronización solicitada por el usuario");
     }
@@ -174,6 +178,15 @@ namespace OpenProject.Revit.LiveSync.Queue
       RequestPublish();
     }
     public void Retry() => RequestPublish();
+    public static string EmptyConfirmDetail(int count) =>
+      $"Tu vista 3D no tiene elementos. Si continúas, se quitarán los {count:N0} elementos del modelo para todas las personas conectadas. Podrás volver atrás con «Restaurar modelo anterior».";
+    public void ConfirmEmptyReplace()
+    {
+      _emptyConfirmed = true; _emptyToConfirm = 0;
+      _log.Emit("queue", "REPLACE_EMPTY_CONFIRMED", "Confirmado vaciar el modelo con una captura sin elementos");
+      RequestReplace();
+    }
+    public void CancelEmptyReplace() { _emptyToConfirm = 0; _replaceNote = EmptyCancelledDetail; }
     public void RequestReplace() { _replace = true; _needsConfirmation = false; RequestPublish(); _log.Emit("queue", "REPLACE_REQUESTED", "Reemplazo del modelo solicitado"); }
     // Publication waits for the capture that the same click started; nothing older is sent first.
     public void AwaitSnapshot()
@@ -224,7 +237,7 @@ namespace OpenProject.Revit.LiveSync.Queue
       {
         SaveLatest(outbox);
         if (await AnswerPanelAsync(outbox).ConfigureAwait(false)) { remote = null; nextProbe = DateTime.MinValue; }
-        if (_live && !_publishRequested && !_paused && !_attention && !_captureHold && !_needsConfirmation && !_access.ReadOnly && outbox.HasPending) _publishRequested = true;
+        if (_live && !_publishRequested && !_paused && !_attention && !_captureHold && !_needsConfirmation && _emptyToConfirm == 0 && !_access.ReadOnly && outbox.HasPending) _publishRequested = true;
         if (_receiver is ISyncPresence presence) presence.SetPaused(_paused || _captureHold);
         if (retrySeen != _retry) {
           if (_waiting) { outbox.Abandon("Publicación solicitada por el usuario; se conserva la captura más reciente"); _waiting = false; }
@@ -281,7 +294,8 @@ namespace OpenProject.Revit.LiveSync.Queue
           {
             if (CdeModelAccess.From(remote).ReadOnly) Report(outbox, "Solo lectura", ReadOnlyDetail, remote);
             else if (_needsConfirmation) Report(outbox, ConfirmStage, ConfirmDetail(_comparison), remote);
-            else if (_replaceRefused) Report(outbox, ReplaceRefusedStage, ReplaceRefusedDetail, remote);
+            else if (_emptyToConfirm > 0) Report(outbox, EmptyConfirmStage, EmptyConfirmDetail(_emptyToConfirm), remote);
+            else if (_replaceNote is { } note) Report(outbox, ReplaceRefusedStage, note, remote);
             else Report(outbox, outbox.HasPending ? "Listo para sincronizar" : "Al día",
               outbox.HasPending ? "Captura guardada localmente · pulsa Sincronizar para publicarla" : "Sin cambios pendientes de publicación",
               remote);
@@ -297,11 +311,12 @@ namespace OpenProject.Revit.LiveSync.Queue
           if (job == null && due)
           {
             if (remote.SessionStartedAt > _started) throw new ReceiverException(403);
-            // A replacement with nothing in the capture would only empty the model for everyone, and take its restore point with it.
-            if (_replace && outbox.DesiredCount == 0)
+            // Starting from zero is legitimate, but only knowing it: a capture with nothing removes everything, for everyone.
+            if (_replace && outbox.DesiredCount == 0 && (remote.Count == 0 || !_emptyConfirmed))
             {
-              _replace = false; _publishRequested = false; _replaceRefused = true;
-              _log.Emit("queue", "REPLACE_EMPTY_REFUSED", "Reemplazo cancelado: la vista 3D no tiene elementos; el modelo del CDE no se toca");
+              _replace = false; _publishRequested = false; _emptyConfirmed = false;
+              if (remote.Count == 0) _replaceNote = NothingToEmptyDetail; else _emptyToConfirm = remote.Count;
+              _log.Emit("queue", "REPLACE_EMPTY_HELD", remote.Count == 0 ? NothingToEmptyDetail : $"Reemplazo en espera: la captura está vacía y el modelo del CDE tiene {remote.Count:N0} elementos");
               continue;
             }
             // Replace only on request or to fill an empty model; otherwise continue on the revision of the CDE.
@@ -351,7 +366,7 @@ namespace OpenProject.Revit.LiveSync.Queue
               merge: merging && !reset, remote: prints, gone: gone, remoteCatalog: remote.Supports(CatalogReuseFeature) ? remote.CatalogHash : null, versions: plan, revitVersion: Entry.RibbonButtonClickHandler.RevitVersion); }
             finally { _preparing = false; }
             await ReportWithheldAsync(outbox, remote).ConfigureAwait(false);
-            if (reset) _replace = false;
+            if (reset) { _replace = false; _emptyConfirmed = false; }
             if (job == null)
             {
               // Contract 4: nothing to send. The person is part of the model all the same; what stayed out is listed.
@@ -643,7 +658,7 @@ namespace OpenProject.Revit.LiveSync.Queue
         Drawings = box?.DrawingCount ?? _progress.Drawings, DrawingsPending = box?.HasPendingDrawings ?? _progress.DrawingsPending,
         DrawingsSupported = box == null ? _progress.DrawingsSupported : box.Get("drawingsSupported") == "1", Access = _access,
         QueuePosition = stage == "En cola del CDE" ? _queuePosition : 0, Revoked = _revoked, NoPermission = _noPermission, RestorePoint = _restorePoint,
-        Comparison = _comparison, Joined = _joined, NeedsConfirmation = _needsConfirmation, Differs = box?.Differs ?? _progress.Differs };
+        Comparison = _comparison, Joined = _joined, NeedsConfirmation = _needsConfirmation, EmptyToConfirm = _emptyToConfirm, Differs = box?.Differs ?? _progress.Differs };
     }
     private void ReportPreparation(int done, int total, long bytes)
     {
@@ -658,7 +673,7 @@ namespace OpenProject.Revit.LiveSync.Queue
         ReceiverRevision = previous.ReceiverRevision, ViewerRevision = previous.ViewerRevision,
         Jobs = previous.Jobs, PendingElements = previous.PendingElements, HasPendingChanges = previous.HasPendingChanges, Drawings = previous.Drawings, DrawingsPending = previous.DrawingsPending, DrawingsSupported = previous.DrawingsSupported,
         Access = previous.Access, Revoked = previous.Revoked, NoPermission = previous.NoPermission, RestorePoint = previous.RestorePoint,
-        Comparison = previous.Comparison, Joined = previous.Joined, NeedsConfirmation = previous.NeedsConfirmation, Differs = previous.Differs
+        Comparison = previous.Comparison, Joined = previous.Joined, NeedsConfirmation = previous.NeedsConfirmation, EmptyToConfirm = previous.EmptyToConfirm, Differs = previous.Differs
       };
     }
     private Task Delay(int milliseconds) => Task.Delay(milliseconds, _cancel.Token);
