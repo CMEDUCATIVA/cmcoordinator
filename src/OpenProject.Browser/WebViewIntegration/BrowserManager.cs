@@ -40,6 +40,13 @@ namespace OpenProject.Browser.WebViewIntegration
     {
       Browser = _chromiumWebBrowser;
 
+      // CefSharp.Wpf hooks the drag events but leaves AllowDrop off: without it WPF rejects every drop and the page never sees one.
+      Browser.AllowDrop = true;
+      // Only what is dragged inside the page: a file dropped from Windows must not open in the browser.
+      Browser.PreviewDragEnter += RejectFiles;
+      Browser.PreviewDragOver += RejectFiles;
+      Browser.PreviewDrop += RejectFiles;
+
       // Remove the "Revit Add-In settings" div on every page
       Browser.FrameLoadEnd += BrowserOnFrameLoadEnd_RemoveRevitSettingsDiv;
 
@@ -81,6 +88,13 @@ namespace OpenProject.Browser.WebViewIntegration
 
       // Set the initial page after the bridge and navigation handlers are ready.
       Browser.Address = EmbeddedLandingPageHandler.GetEmbeddedLandingPageIndexUrl();
+    }
+
+    private static void RejectFiles(object sender, DragEventArgs e)
+    {
+      if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
+      e.Effects = DragDropEffects.None;
+      e.Handled = true;
     }
 
     // Injects JS after the main frame finishes loading to remove the target div
