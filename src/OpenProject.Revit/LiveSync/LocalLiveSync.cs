@@ -114,7 +114,7 @@ namespace OpenProject.Revit.LiveSync
         var destination = _remote ?? _rememberedDestination;
         // A fresh installation has no saved destination yet: there is no history to show.
         if (destination == null || destination.UserId <= 0 || !Entry.CdeAccessController.MatchesDestination(destination.Address, destination.UserId)) return null;
-        return Path.Combine(Root, "outbox", destination.QueueKey, SourceIdentity.Read(document));
+        return QueueFolder.Find(Path.Combine(Root, "outbox", destination.QueueKey, SourceIdentity.Read(document)), document.PathName);
       }
     }
     public static bool IsRunning => _worker != null;
@@ -167,7 +167,7 @@ namespace OpenProject.Revit.LiveSync
       _document = document; _application = app;
       _documentPath = document.PathName;
       _destinationKey = _remote.QueueKey;
-      var queue = Path.Combine(Root, "outbox", _destinationKey, source);
+      var queue = QueueFolder.Claim(Path.Combine(Root, "outbox", _destinationKey, source), document.PathName);
       var receiver = new SyncReceiver(destination: _remote);
       _worker = new SyncWorker(queue, receiver, _telemetry, previous?.Completion);
       _capture = new CaptureScheduler(document, view, source, _telemetry, Path.Combine(Root, "logs"));
@@ -358,6 +358,7 @@ namespace OpenProject.Revit.LiveSync
       if (_document.PathName != _documentPath)
       {
         _documentPath = _document.PathName;
+        QueueFolder.Relocate(_worker.DirectoryPath, _documentPath);
         _modelLabel = _document.Title + " · " + _document.GetElement(_capture.ViewId)?.Name;
         _telemetry.Emit("session", "DOCUMENT_RELOCATED", "Ruta actualizada; identidad y cola conservadas");
         if (_capture.Stopped) { _needsCapture = false; return; }
