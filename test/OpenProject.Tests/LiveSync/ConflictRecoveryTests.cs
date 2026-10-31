@@ -80,6 +80,28 @@ namespace OpenProject.Tests.LiveSync
       Assert.Equal("g", (string)entry["a"]);
     }
 
+    // F4 in two real Revit (31/10): the first edit after a restoration may come before this Revit reads the CDE.
+    [Fact]
+    public void AnEditMadeOnWhatTheCdeHasAfterARestorationEnters()
+    {
+      using var folder = new OutboxTests.TestFolder();
+      using var outbox = new SqliteOutbox(folder.Path);
+      var wall = Element("W1");
+      outbox.Save(Snapshot(wall));
+      outbox.RecordBaseline();
+      outbox.ResolveKnown(Remote(new() { ["W1"] = (Print(wall), 5, 5, 7) }));
+      outbox.Save(Snapshot(Element("W1", x: 3)));
+      var restored = Remote(new() { ["W1"] = (Print(wall), 9, 9, 7) }, restored: 9);
+      outbox.ResolveKnown(restored);
+      var entry = ElementsPart(outbox, Prepare(outbox, restored))["versions"]["W1"];
+      Assert.Equal(9, (long)entry["bg"]);
+      Assert.Empty(outbox.Differs);
+    }
+
+    // 8.J in two real Revit (31/10): the report was silently dropped, because the real receiver did not declare it.
+    [Fact]
+    public void TheRealReceiverTellsWhatStayedOut() => Assert.True(typeof(ISyncWithheld).IsAssignableFrom(typeof(SyncReceiver)));
+
     // F4: what is different from the restored model stays out and says why, once.
     [Fact]
     public void WhatDiffersFromTheRestoredModelStaysOutAsRestoredAndIsToldOnce()

@@ -250,14 +250,15 @@ namespace OpenProject.Revit.LiveSync.Queue
       foreach (var (id, g, p) in behind)
       {
         var version = prints.Versions[id];
-        string confirmed = null, desired = null, desiredHash = null;
-        using (var cmd = Command("SELECT c.json,d.json,d.hash FROM desired d LEFT JOIN confirmed c ON d.id=c.id WHERE d.id=$id", ("$id", id)))
+        string confirmed = null, desired = null, desiredHash = null, reference = null;
+        using (var cmd = Command("SELECT c.json,d.json,d.hash,COALESCE(c.hash,b.hash) FROM desired d LEFT JOIN confirmed c ON d.id=c.id LEFT JOIN baseline b ON d.id=b.id WHERE d.id=$id", ("$id", id)))
         using (var reader = cmd.ExecuteReader())
         {
           if (!reader.Read()) continue;
-          confirmed = reader.IsDBNull(0) ? null : reader.GetString(0); desired = reader.GetString(1); desiredHash = reader.GetString(2);
+          confirmed = reader.IsDBNull(0) ? null : reader.GetString(0); desired = reader.GetString(1); desiredHash = reader.GetString(2); reference = reader.IsDBNull(3) ? null : reader.GetString(3);
         }
-        var sameWhole = remote.TryGetValue(id, out var print) && SamePrint(print, desiredHash);
+        // What this Revit started from counts too: a change made on what the CDE has now is not made on anything older.
+        var sameWhole = remote.TryGetValue(id, out var print) && (SamePrint(print, desiredHash) || reference != null && SamePrint(print, reference));
         prints.AspectPrints.TryGetValue(id, out var remoteAspects);
         var mine = PrintsHeld(confirmed, desired);
         var sameG = sameWhole || remoteAspects?.Length == 2 && mine.Contains(("g", remoteAspects[0]));

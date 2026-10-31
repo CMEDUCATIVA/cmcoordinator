@@ -133,7 +133,7 @@ namespace OpenProject.Revit.LiveSync.Transport
   public interface ISyncPrintUpgrade { Task<int> UpgradePrintsAsync(IReadOnlyDictionary<string, PrintUpgrade> upgrades, CancellationToken token); }
   // Optional: a CDE with element versions answers each commit with what entered and what stayed out (UI-8 logic 8).
   public interface ISyncCommitResult { CommitResult TakeCommit(string jobId); }
-  public sealed class SyncReceiver : ISyncReceiver, ISyncPresence, ISyncFingerprints, ISyncRestore, ISyncRejection, ISyncCommitResult, ISyncPrintUpgrade
+  public sealed class SyncReceiver : ISyncReceiver, ISyncPresence, ISyncFingerprints, ISyncRestore, ISyncRejection, ISyncCommitResult, ISyncPrintUpgrade, ISyncWithheld
   {
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, CommitResult> _commits = new();
     public CommitResult TakeCommit(string jobId) => _commits.TryRemove(jobId ?? "", out var result) ? result : null;
