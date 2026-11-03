@@ -175,6 +175,8 @@ begin
 
   if FileExistsEx(AppDataManifest) or DirectoryExists(AppDataDir) then
     Summary := Summary + 'AppData Revit ' + RevitYear + ': ' + AppDataDir + #13#10;
+  // Cualquier otra copia nuestra de ese año, en cualquier carpeta de complementos (Duplicados.iss).
+  AnotarCopias(Summary, RevitYear);
 end;
 
 function IsSelectedComponent(const ComponentName: string): Boolean;
@@ -185,6 +187,7 @@ end;
 procedure DetectSelectedExistingInstalls();
 begin
   ExistingInstallSummary := '';
+  OtrosFabricantes := '';
 #if Defined(HasRevit2019)
   if IsSelectedComponent('revit2019') then
     AppendExistingInstall(ExistingInstallSummary, '2019');
@@ -269,7 +272,8 @@ begin
     FileExistsEx(ManifestPath) or
     DirectoryExists(PluginDir) or
     FileExistsEx(AppDataManifest) or
-    DirectoryExists(AppDataDir);
+    DirectoryExists(AppDataDir) or
+    (GetArrayLength(CopiasDelAnio(RevitYear)) > 0);
 end;
 
 function RemoveExistingInstallForYear(const RevitYear: string): Boolean;
@@ -287,7 +291,9 @@ begin
   AppDataDir := ExpandConstant('{userappdata}\Autodesk\REVIT\Addins\' + RevitYear + '\{#AddinName}');
 
   Log('Removing existing install for Revit ' + RevitYear);
+  // Primero lo nuestro de cualquier carpeta, con copia de seguridad (Duplicados.iss); después, lo que quede por nombre.
   Result :=
+    ApartarCopiasDelAnio(RevitYear) and
     RemovePathWithCmd(ManifestPath, False) and
     RemovePathWithCmd(PluginDir, True) and
     RemovePathWithCmd(AppDataManifest, False) and

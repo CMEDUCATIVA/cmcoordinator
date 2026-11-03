@@ -284,5 +284,6 @@ Type: filesandordirs; Name: "{userappdata}\Autodesk\REVIT\Addins\2027\{#AddinNam
 #endif
 
 [Code]
+#include "Code/Duplicados.iss"
 #include "Code/DetectionAndOperations.iss"
 #include "Code/WizardLifecycle.iss"

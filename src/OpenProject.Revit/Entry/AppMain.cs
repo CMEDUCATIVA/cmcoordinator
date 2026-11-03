@@ -33,6 +33,7 @@ namespace OpenProject.Revit.Entry
         var assemblyPath = Assembly.GetExecutingAssembly().Location;
         var lastWrite = File.GetLastWriteTime(assemblyPath);
         Serilog.Log.Information("OpenProject.Revit build stamp path={Path} lastWrite={LastWrite}", assemblyPath, lastWrite);
+        ComplementoDuplicado.Avisar(application);
         RevitBridgeClient.Initialize();
         RevitBridgeClient.ApplySettings(McpSettingsStore.Load());
 

@@ -209,9 +209,14 @@ begin
     if HasDetectedExistingInstalls() then
     begin
       ExistingInstallPage.RichEditViewer.Text :=
-        'Se detectaron instalaciones previas en las rutas configuradas para las versiones seleccionadas.' + #13#10#13#10 +
+        'Se detectaron instalaciones previas de Cmcoordinator para las versiones seleccionadas.' + #13#10#13#10 +
         ExistingInstallSummary + #13#10 +
-        'En la siguiente pantalla el instalador las desinstalará antes de copiar la nueva versión.';
+        'Al continuar, el instalador las quitará antes de copiar la nueva versión, para que Revit no cargue dos copias. ' +
+        'Se guardan en ' + ExpandConstant('{commonappdata}\Cmcoordinator\copias') + '.';
+      if OtrosFabricantes <> '' then
+        ExistingInstallPage.RichEditViewer.Text := ExistingInstallPage.RichEditViewer.Text + #13#10#13#10 +
+          'Estos complementos de otro fabricante usan el identificador antiguo de Cmcoordinator. No se tocan; ' +
+          'la nueva versión usa otro identificador y ya no chocará con ellos:' + #13#10 + OtrosFabricantes;
     end;
     exit;
   end;
@@ -289,6 +294,8 @@ begin
       MsgBox('Cierra Autodesk Revit antes de desinstalar el add-in.', mbError, MB_OK);
       Abort;
     end;
+    // Lo nuestro en cualquier carpeta de complementos, no solo donde se instaló (Duplicados.iss).
+    QuitarCopiasDeTodosLosAnios();
   end;
 end;
 
