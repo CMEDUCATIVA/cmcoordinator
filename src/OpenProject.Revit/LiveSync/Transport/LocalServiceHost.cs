@@ -22,7 +22,7 @@ namespace OpenProject.Revit.LiveSync.Transport
         {
           var value = JObject.Parse(await http.GetStringAsync(LocalViewerEndpoint.Url + "api/status").ConfigureAwait(false));
           if (value["application"]?.ToString() == "cmcoordinator-local-live-viewer") return;
-          throw new InvalidOperationException("El puerto del visor está ocupado por otra aplicación.");
+          throw new InvalidOperationException($"El puerto {LocalViewerEndpoint.Port} del visor está ocupado por otra aplicación.");
         }
         catch (HttpRequestException) { }
         catch (TaskCanceledException) { throw new HttpRequestException("El puerto del visor no responde; se reintentará."); }
@@ -31,6 +31,10 @@ namespace OpenProject.Revit.LiveSync.Transport
         var start = new ProcessStartInfo(FindNode()) { WorkingDirectory = directory, UseShellExecute = false,
           CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden };
         NetCompat.SetArguments(start, new[] { "server.mjs" });
+        // Its own port and data for this Revit version (LocalViewerEndpoint).
+        start.EnvironmentVariables["COORDINATOR_LIVE_PORT"] = LocalViewerEndpoint.Port.ToString();
+        start.EnvironmentVariables["COORDINATOR_LIVE_DATA"] = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+          "Cmcoordinator", "LiveSync", LocalViewerEndpoint.RevitYear.ToString(), "receiver.sqlite");
         using var process = Process.Start(start);
         for (var i = 0; i < 20; i++)
         {

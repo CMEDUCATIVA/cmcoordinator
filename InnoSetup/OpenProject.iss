@@ -8,14 +8,14 @@
 #define AppIdValue "{{D22B2A9A-2C49-4C3A-8F8B-6AC9A2E6A026}"
 #define UninstallRegKey "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{D22B2A9A-2C49-4C3A-8F8B-6AC9A2E6A026}_is1"
 
-; One Release build per Revit year (2019-2027). ReleaseCurrentOnly packages only 2026 and 2027.
-#if !Defined(ReleaseCurrentOnly) && FileExists("..\src\OpenProject.Revit\bin\x64\Release-2019\net472\OpenProject.Revit.dll")
+; One Release build per Revit year: 2022-2027 (2019-2021 only with /DIncluirRevit2019a2021). ReleaseCurrentOnly packages only 2026 and 2027.
+#if !Defined(ReleaseCurrentOnly) && Defined(IncluirRevit2019a2021) && FileExists("..\src\OpenProject.Revit\bin\x64\Release-2019\net472\OpenProject.Revit.dll")
   #define HasRevit2019
 #endif
-#if !Defined(ReleaseCurrentOnly) && FileExists("..\src\OpenProject.Revit\bin\x64\Release-2020\net472\OpenProject.Revit.dll")
+#if !Defined(ReleaseCurrentOnly) && Defined(IncluirRevit2019a2021) && FileExists("..\src\OpenProject.Revit\bin\x64\Release-2020\net472\OpenProject.Revit.dll")
   #define HasRevit2020
 #endif
-#if !Defined(ReleaseCurrentOnly) && FileExists("..\src\OpenProject.Revit\bin\x64\Release-2021\net48\OpenProject.Revit.dll")
+#if !Defined(ReleaseCurrentOnly) && Defined(IncluirRevit2019a2021) && FileExists("..\src\OpenProject.Revit\bin\x64\Release-2021\net48\OpenProject.Revit.dll")
   #define HasRevit2021
 #endif
 #if !Defined(ReleaseCurrentOnly) && FileExists("..\src\OpenProject.Revit\bin\x64\Release-2022\net48\OpenProject.Revit.dll")
