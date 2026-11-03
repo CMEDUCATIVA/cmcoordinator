@@ -83,23 +83,23 @@ begin
   if not FileExists(UninstallExe) then
     exit;
 
-  if MsgBox(
+  if SuppressibleMsgBox(
     'Se detectó una instalación previa del instalador.'#13#10#13#10 +
     '¿Quieres desinstalarla antes de continuar?',
     mbConfirmation,
-    MB_YESNO) = IDYES then
+    MB_YESNO, IDYES) = IDYES then
   begin
     Log('Running previous uninstaller: ' + UninstallExe);
     if not Exec(UninstallExe, '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
     begin
-      MsgBox('No se pudo ejecutar el desinstalador previo.', mbError, MB_OK);
+      SuppressibleMsgBox('No se pudo ejecutar el desinstalador previo.', mbError, MB_OK, IDOK);
       Result := False;
       exit;
     end;
 
     if ResultCode <> 0 then
     begin
-      MsgBox('La desinstalación previa devolvió código ' + IntToStr(ResultCode) + '.', mbError, MB_OK);
+      SuppressibleMsgBox('La desinstalación previa devolvió código ' + IntToStr(ResultCode) + '.', mbError, MB_OK, IDOK);
       Result := False;
     end;
   end;
@@ -109,11 +109,11 @@ function InitializeSetup(): Boolean;
 begin
   if IsRevitRunning() then
   begin
-    MsgBox(
+    SuppressibleMsgBox(
       'Cierra Autodesk Revit antes de instalar el add-in.'#13#10#13#10 +
       'El instalador necesita reemplazar archivos bloqueados en la carpeta de Addins.',
       mbError,
-      MB_OK);
+      MB_OK, IDOK);
     Result := False;
     exit;
   end;
@@ -193,7 +193,7 @@ begin
   begin
     if WizardSelectedComponents(False) = '' then
     begin
-      MsgBox('Selecciona al menos una versión de Revit para instalar.', mbError, MB_OK);
+      SuppressibleMsgBox('Selecciona al menos una versión de Revit para instalar.', mbError, MB_OK, IDOK);
       Result := False;
       exit;
     end;
@@ -223,11 +223,11 @@ begin
 
   if Assigned(ExistingInstallPage) and (CurPageID = ExistingInstallPage.ID) then
   begin
-    if MsgBox(
+    if SuppressibleMsgBox(
       'El instalador eliminará las instalaciones detectadas de las versiones seleccionadas antes de continuar.'#13#10#13#10 +
       '¿Deseas proceder?',
       mbConfirmation,
-      MB_YESNO) <> IDYES then
+      MB_YESNO, IDYES) <> IDYES then
     begin
       Result := False;
       exit;
@@ -235,11 +235,11 @@ begin
 
     if not RemoveSelectedExistingInstalls() then
     begin
-      MsgBox(
+      SuppressibleMsgBox(
         'No se pudo limpiar completamente alguna instalación detectada.'#13#10 +
         'Corrige el problema y vuelve a intentarlo.',
         mbError,
-        MB_OK);
+        MB_OK, IDOK);
       Result := False;
       exit;
     end;
@@ -247,11 +247,11 @@ begin
     DetectSelectedExistingInstalls();
     if ExistingInstallSummary <> '' then
     begin
-      MsgBox(
+      SuppressibleMsgBox(
         'Todavía se detectan archivos previos después de intentar desinstalar.'#13#10 +
         'Cierra Revit y elimina manualmente esos archivos antes de continuar.',
         mbError,
-        MB_OK);
+        MB_OK, IDOK);
       Result := False;
       exit;
     end;
@@ -291,7 +291,7 @@ begin
   begin
     if IsRevitRunning() then
     begin
-      MsgBox('Cierra Autodesk Revit antes de desinstalar el add-in.', mbError, MB_OK);
+      SuppressibleMsgBox('Cierra Autodesk Revit antes de desinstalar el add-in.', mbError, MB_OK, IDOK);
       Abort;
     end;
     // Lo nuestro en cualquier carpeta de complementos, no solo donde se instaló (Duplicados.iss).
