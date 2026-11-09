@@ -26,11 +26,13 @@ namespace OpenProject.Tests.Updates
           using var reader = new StreamReader(resource);
           var document = XDocument.Parse(reader.ReadToEnd());
           document.Root.Attribute(XName.Get("Class", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Remove();
-          foreach (var attribute in document.Descendants().Attributes().Where(a => a.Name == "Click" || a.Name == "SelectionChanged").ToList()) attribute.Remove();
+          foreach (var attribute in document.Descendants().Attributes().Where(a => a.Name == "Click").ToList()) attribute.Remove();
           var window = (Window)XamlReader.Parse(document.ToString());
-          Assert.Equal(700, window.Width); Assert.Equal(460, window.Height);
-          var sections = (ListBox)window.FindName("SectionList");
-          Assert.Equal("Actualizaciones", ((ListBoxItem)sections.Items[3]).Content);
+          // Only «Actualizaciones» remains: no section list, no Conexión, Visibilidad or Agente IA.
+          Assert.Equal("Actualizaciones", window.Title);
+          Assert.Null(window.FindName("SectionList"));
+          Assert.Null(window.FindName("ApiTokenBox"));
+          Assert.Null(window.FindName("AiAgentPanel"));
           Assert.Equal("Actualizar desde GitHub", ((Button)window.FindName("UpdateButton")).Content);
           Assert.Equal(Visibility.Collapsed, ((Button)window.FindName("CancelUpdateButton")).Visibility);
           Assert.NotNull(window.FindName("UpdateStatusText"));

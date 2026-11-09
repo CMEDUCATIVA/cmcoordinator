@@ -139,7 +139,7 @@ namespace OpenProject.Revit.LiveSync
       _telemetry = new SyncTelemetry(Path.Combine(Root, "logs"));
       _rememberedDestination = CdeCredentialVault.Load();
       _panel = new SyncPanelView();
-      application.RegisterDockablePane(PaneId, "Centro de sincronización", _panel);
+      application.RegisterDockablePane(PaneId, "Sincronización", _panel);
       _external = ExternalEvent.Create(new ActionHandler());
       _captureEvent = ExternalEvent.Create(new CaptureHandler());
       _wakeTimer = new System.Threading.Timer(_ => {
@@ -148,7 +148,7 @@ namespace OpenProject.Revit.LiveSync
       }, null, 150, 150);
       application.ControlledApplication.DocumentChanged += OnChanged;
       application.Idling += OnIdle;
-      button.ItemText = "Centro de\nsincronización";
+      button.ItemText = "Sincronización";
       button.ToolTip = "Abrir cola persistente, pausa, continuación y diagnóstico del visor local";
     }
     public static void Start(UIApplication app)

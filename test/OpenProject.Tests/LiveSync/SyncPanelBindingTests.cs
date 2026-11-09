@@ -36,7 +36,7 @@ namespace OpenProject.Tests.LiveSync
         markup.Descendants().First(e => e.Name.LocalName == "SyncHistoryView").Remove();
         markup.Root.Attribute(XName.Get("Class", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Remove();
         foreach (var attribute in markup.Descendants().Attributes().Where(a =>
-          a.Name.LocalName is "Click" or "TextChanged" or "PasswordChanged").ToArray()) attribute.Remove();
+          a.Name.LocalName is "Click" or "TextChanged" or "PasswordChanged" or "PreviewMouseLeftButtonDown").ToArray()) attribute.Remove();
         var panel = (UserControl)XamlReader.Parse(markup.ToString());
         var model = new SyncPanelViewModel();
         panel.DataContext = model;
@@ -70,7 +70,7 @@ namespace OpenProject.Tests.LiveSync
         Assert.Contains(Descendants(panel).OfType<TextBox>(), b => b.Text == "Estructura prueba" && b.IsReadOnly);
         Assert.Contains(Descendants(panel).OfType<TextBox>(), b => b.Text == "Revit activo" && b.IsReadOnly);
         Assert.Contains(Descendants(panel).OfType<TextBlock>(), b => b.Text == "Conexión validada");
-        Assert.Contains(Descendants(panel).OfType<TextBox>(), b => b.Text == "CENTRO DE CMCOORDINATOR" && b.IsReadOnly);
+        Assert.Contains(Descendants(panel).OfType<TextBox>(), b => b.Text == "SINCRONIZACIÓN" && b.IsReadOnly);
         var selectableTitle = Descendants(panel).OfType<TextBox>().First(b => b.Text == "Estructura prueba" && b.IsReadOnly);
         selectableTitle.Select(0, selectableTitle.Text.Length);
         Assert.Equal("Estructura prueba", selectableTitle.SelectedText);
@@ -225,7 +225,7 @@ namespace OpenProject.Tests.LiveSync
         markup.Descendants().First(e => e.Name.LocalName == "SyncHistoryView").Remove();
         markup.Root.Attribute(XName.Get("Class", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Remove();
         foreach (var attribute in markup.Descendants().Attributes().Where(a =>
-          a.Name.LocalName is "Click" or "TextChanged" or "PasswordChanged").ToArray()) attribute.Remove();
+          a.Name.LocalName is "Click" or "TextChanged" or "PasswordChanged" or "PreviewMouseLeftButtonDown").ToArray()) attribute.Remove();
         var panel = (UserControl)XamlReader.Parse(markup.ToString());
         var model = new SyncPanelViewModel();
         panel.DataContext = model;
@@ -310,7 +310,7 @@ namespace OpenProject.Tests.LiveSync
         markup.Descendants().First(e => e.Name.LocalName == "SyncHistoryView").Remove();
         markup.Root.Attribute(XName.Get("Class", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Remove();
         foreach (var attribute in markup.Descendants().Attributes().Where(a =>
-          a.Name.LocalName is "Click" or "TextChanged" or "PasswordChanged").ToArray()) attribute.Remove();
+          a.Name.LocalName is "Click" or "TextChanged" or "PasswordChanged" or "PreviewMouseLeftButtonDown").ToArray()) attribute.Remove();
         var panel = (UserControl)XamlReader.Parse(markup.ToString());
         var model = new SyncPanelViewModel();
         panel.DataContext = model;
@@ -383,7 +383,7 @@ namespace OpenProject.Tests.LiveSync
         markup.Descendants().First(e => e.Name.LocalName == "SyncHistoryView").Remove();
         markup.Root.Attribute(XName.Get("Class", "http://schemas.microsoft.com/winfx/2006/xaml"))?.Remove();
         foreach (var attribute in markup.Descendants().Attributes().Where(a =>
-          a.Name.LocalName is "Click" or "TextChanged" or "PasswordChanged").ToArray()) attribute.Remove();
+          a.Name.LocalName is "Click" or "TextChanged" or "PasswordChanged" or "PreviewMouseLeftButtonDown").ToArray()) attribute.Remove();
         var panel = (UserControl)XamlReader.Parse(markup.ToString());
         var model = new SyncPanelViewModel();
         panel.DataContext = model;

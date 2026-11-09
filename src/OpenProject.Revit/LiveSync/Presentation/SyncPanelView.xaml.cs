@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Autodesk.Revit.UI;
@@ -102,6 +103,15 @@ namespace OpenProject.Revit.LiveSync.Presentation
     }
     // The notice never blocks: closing it leaves the detail in «Cola e historial»; it returns if another element stays out.
     private void DismissDiffersClick(object sender, RoutedEventArgs args) => _model.DismissDiffers();
+    // A double click selects the whole link or token: Windows alone stops the word at «/», «.» or «:».
+    private void SelectAllOnDoubleClick(object sender, MouseButtonEventArgs args)
+    {
+      if (args.ClickCount != 2) return;
+      if (sender is System.Windows.Controls.TextBox text) { text.Focus(); text.SelectAll(); }
+      else if (sender is PasswordBox password) { password.Focus(); password.SelectAll(); }
+      else return;
+      args.Handled = true;
+    }
     private void CopyLinkClick(object sender, RoutedEventArgs args) => Copy(CdeLink.Text, "Enlace copiado");
     private void CopyTokenClick(object sender, RoutedEventArgs args) => Copy(CdeToken.Password, "Token copiado");
     private void Copy(string value, string confirmation)

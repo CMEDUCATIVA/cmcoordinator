@@ -93,9 +93,10 @@
   <StackPanel Margin="18">
    <Grid Margin="0,1,0,19">
     <Grid.ColumnDefinitions><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-    <Path Grid.Column="0" Style="{StaticResource LineIcon}" Width="21" Height="21" VerticalAlignment="Center" Margin="0,0,3,0"
-      Data="M20,11 A8,8 0 0 0 5,7 M4,4 L4,9 L9,9 M4,13 A8,8 0 0 0 19,17 M20,20 L20,15 L15,15"/>
-    <TextBox Grid.Column="1" Margin="6,0,0,0" Text="CENTRO DE CMCOORDINATOR" Style="{StaticResource SelectableInfo}" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" AutomationProperties.Name="Centro de Cmcoordinator"/>
+    <!-- Logo «Sincronización»: two arrows around the model cube; the ribbon button (Assets/Sync16.png, Sync32.png) draws the same. -->
+    <Path Grid.Column="0" Style="{StaticResource LineIcon}" Width="21" Height="21" VerticalAlignment="Center" Margin="0,0,3,0" Stroke="{DynamicResource PanelAccent}"
+      Data="M20,11 A8,8 0 0 0 5,7 M4,4 L4,9 L9,9 M4,13 A8,8 0 0 0 19,17 M20,20 L20,15 L15,15 M12,8.5 L15,10.2 L15,13.8 L12,15.5 L9,13.8 L9,10.2 Z M9,10.2 L12,12 L15,10.2 M12,12 L12,15.5"/>
+    <TextBox Grid.Column="1" Margin="6,0,0,0" Text="SINCRONIZACIÓN" Style="{StaticResource SelectableInfo}" FontSize="17" FontWeight="SemiBold" VerticalAlignment="Center" AutomationProperties.Name="Sincronización"/>
    </Grid>
    <Grid Margin="0,0,0,17">
     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="42"/></Grid.ColumnDefinitions>
@@ -159,7 +160,7 @@
     <TextBox Text="Enlace de conexión" Style="{StaticResource SelectableSection}" Margin="0,0,0,5"/>
     <Border BorderBrush="{DynamicResource PanelBorder}" BorderThickness="1" Background="{DynamicResource PanelSurface}" Margin="0,0,0,11">
      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="36"/></Grid.ColumnDefinitions>
-      <TextBox x:Name="CdeLink" Grid.Column="0" TextChanged="ConnectionChanged" MinHeight="34" Padding="7,5" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource PanelText}" AutomationProperties.Name="Enlace de conexión CDE"/>
+      <TextBox x:Name="CdeLink" PreviewMouseLeftButtonDown="SelectAllOnDoubleClick" Grid.Column="0" TextChanged="ConnectionChanged" MinHeight="34" Padding="7,5" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource PanelText}" AutomationProperties.Name="Enlace de conexión CDE"/>
       <Button Grid.Column="1" Style="{StaticResource SquareIconButton}" Click="CopyLinkClick" ToolTip="Copiar enlace completo" AutomationProperties.Name="Copiar enlace de conexión">
        <Path Style="{StaticResource LineIcon}" Data="M8,8 L20,8 L20,21 L8,21 Z M4,16 L4,4 L16,4 L16,8"/>
       </Button>
@@ -168,8 +169,8 @@
     <TextBox Text="Token de acceso" Style="{StaticResource SelectableSection}" Margin="0,0,0,5"/>
     <Border BorderBrush="{DynamicResource PanelBorder}" BorderThickness="1" Background="{DynamicResource PanelSurface}" Margin="0,0,0,10">
      <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="36"/><ColumnDefinition Width="36"/></Grid.ColumnDefinitions>
-      <PasswordBox x:Name="CdeToken" Grid.Column="0" PasswordChanged="ConnectionChanged" MinHeight="34" Padding="7,5" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource PanelText}" AutomationProperties.Name="Token de acceso CDE"/>
-      <TextBox x:Name="VisibleToken" Grid.Column="0" Visibility="Collapsed" TextChanged="VisibleTokenChanged" MinHeight="34" Padding="7,5" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource PanelText}" AutomationProperties.Name="Token de acceso visible"/>
+      <PasswordBox x:Name="CdeToken" PreviewMouseLeftButtonDown="SelectAllOnDoubleClick" Grid.Column="0" PasswordChanged="ConnectionChanged" MinHeight="34" Padding="7,5" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource PanelText}" AutomationProperties.Name="Token de acceso CDE"/>
+      <TextBox x:Name="VisibleToken" PreviewMouseLeftButtonDown="SelectAllOnDoubleClick" Grid.Column="0" Visibility="Collapsed" TextChanged="VisibleTokenChanged" MinHeight="34" Padding="7,5" BorderThickness="0" Background="Transparent" Foreground="{DynamicResource PanelText}" AutomationProperties.Name="Token de acceso visible"/>
       <Button x:Name="TokenRevealButton" Grid.Column="1" Style="{StaticResource SquareIconButton}" Click="ToggleTokenClick" ToolTip="Mostrar token" AutomationProperties.Name="Mostrar token">
        <Grid>
         <Path x:Name="EyeIcon" Style="{StaticResource LineIcon}" Data="M2,12 C6,4 18,4 22,12 C18,20 6,20 2,12 Z M9,12 A3,3 0 1 0 15,12 A3,3 0 1 0 9,12"/>

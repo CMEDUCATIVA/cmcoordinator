@@ -59,7 +59,7 @@ namespace OpenProject.Revit.Entry
 
         RibbonItem settingsButtonItem = panel.AddItem(
           new PushButtonData("Settings",
-            "Settings",
+            "Actualizaciones",
             Path.Combine(_path, "OpenProject.Revit.dll"),
             "OpenProject.Revit.Entry.CmdMainSettings"));
 
@@ -67,13 +67,18 @@ namespace OpenProject.Revit.Entry
         {
           settingsButton.Image = LoadPngImgSource("OpenProject.Revit.Assets.Settings32.png");
           settingsButton.LargeImage = LoadPngImgSource("OpenProject.Revit.Assets.Settings32.png");
-          settingsButton.ToolTip = "Cmcoordinator Revit Add-in settings";
+          settingsButton.ToolTip = "Buscar e instalar actualizaciones de Cmcoordinator";
         }
 
         var livePanel = application.CreateRibbonPanel(tabName, "Visor local");
         var liveButton = livePanel.AddItem(new PushButtonData("LocalLiveSync", "Iniciar\nvisor local",
           assemblyPath, "OpenProject.Revit.Entry.CmdLocalLiveSync")) as PushButton;
         LocalLiveSync.Initialize(application, liveButton);
+        if (liveButton != null)
+        {
+          liveButton.Image = LoadPngImgSource("OpenProject.Revit.Assets.Sync16.png");
+          liveButton.LargeImage = LoadPngImgSource("OpenProject.Revit.Assets.Sync32.png");
+        }
 
         // Dockable pins pane
         var pinsView = new PinsPaneView();
