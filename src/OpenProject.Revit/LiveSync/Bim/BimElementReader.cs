@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Autodesk.Revit.DB;
 
 namespace OpenProject.Revit.LiveSync.Bim
@@ -46,16 +47,22 @@ namespace OpenProject.Revit.LiveSync.Bim
       return result;
     }
 
-    // Order follows the Autodesk exporter: explicit IfcExportAs (instance, then type), assembly rules,
-    // the project category template, then the built-in table. Classes are normalised to buildingSMART
-    // occurrences; IfcExportType (instance, then type) refines the predefined type.
+    // Order follows the Autodesk exporter of each Revit: «Export to IFC» and IfcExportAs (instance, then type), assembly
+    // rules, the category mapping, then the built-in table. The mapping is the project template from Revit 2025; before,
+    // an add-in cannot read the project's own table, so the table installed with that Revit is used. Classes are
+    // normalised to buildingSMART occurrences; IfcExportType (instance, then type) refines the predefined type.
     private static (string Class, string Predefined, string ObjectType) ResolveClass(Element element, BuiltInCategory category)
     {
       var categoryName = category.ToString();
       var categoryClass = Classes.TryGetValue(category, out var knownClass) ? knownClass : "IfcBuildingElementProxy";
       string ifcClass = null, predefined = null, objectType = null;
       var type = element.Document.GetElement(element.GetTypeId());
-#if Version2026 || Version2027
+      var instanceAs = ExportText(element, false, ExportField.Class);
+      var typeAs = ExportText(type, true, ExportField.Class);
+      if (DirectIfcSemantics.IsDontExport(instanceAs) || DirectIfcSemantics.IsDontExport(typeAs)) return (null, null, null);
+      // «Export to IFC = Yes» keeps an element whose category the mapping does not export.
+      var forced = false;
+#if REVIT2023_OR_GREATER
       var instanceExport = element.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT);
       var instanceMode = instanceExport?.HasValue == true && instanceExport.StorageType == StorageType.Integer
         ? (IFCExportElement?)instanceExport.AsInteger() : null;
@@ -64,33 +71,41 @@ namespace OpenProject.Revit.LiveSync.Bim
       var typeMode = typeExport?.HasValue == true && typeExport.StorageType == StorageType.Integer
         ? (IFCExportElementType?)typeExport.AsInteger() : null;
       if (instanceMode != IFCExportElement.Yes && typeMode == IFCExportElementType.No) return (null, null, null);
-      (ifcClass, predefined) = DirectIfcSemantics.ParseEntity(Text(element.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT_AS)));
-      if (ifcClass == null) (ifcClass, predefined) = DirectIfcSemantics.ParseEntity(Text(type?.get_Parameter(BuiltInParameter.IFC_EXPORT_ELEMENT_TYPE_AS)));
+      forced = instanceMode == IFCExportElement.Yes || typeMode == IFCExportElementType.Yes;
 #endif
+      (ifcClass, predefined) = DirectIfcSemantics.ParseEntity(instanceAs);
+      if (ifcClass == null) (ifcClass, predefined) = DirectIfcSemantics.ParseEntity(typeAs);
       if (ifcClass == null) (ifcClass, predefined) = AssemblyClass(element, categoryName);
-#if Version2026 || Version2027
-      if (ifcClass == null)
+      if (ifcClass == null && element.Category != null)
+      {
+#if REVIT2025_OR_GREATER
         try
         {
           // Without a saved template Revit's exporter uses the in-session mapping, so classification does too.
           var template = IFCCategoryTemplate.GetActiveTemplate(element.Document) ?? IFCCategoryTemplate.GetOrCreateInSessionTemplate(element.Document);
-          if (template != null && element.Category != null)
+          var mapping = template?.GetMappingInfoById(element.Document, element.Category.Id, CustomSubCategoryId.None);
+          if (mapping != null)
           {
-            var mapping = template.GetMappingInfoById(element.Document, element.Category.Id, CustomSubCategoryId.None);
-            if (mapping != null)
-            {
-              if (!mapping.IFCExportFlag && instanceMode != IFCExportElement.Yes && typeMode != IFCExportElementType.Yes) return (null, null, null);
-              var (mapped, suffix) = DirectIfcSemantics.ParseEntity(mapping.IFCEntityName);
-              ifcClass = DirectIfcSemantics.PreferTypedClass(mapped, categoryClass);
-              if (ifcClass == mapped) predefined = suffix ?? DirectIfcSemantics.PredefinedToken(mapping.IFCPredefinedType, out objectType);
-            }
+            if (!mapping.IFCExportFlag && !forced) return (null, null, null);
+            var (mapped, suffix) = DirectIfcSemantics.ParseEntity(mapping.IFCEntityName);
+            ifcClass = DirectIfcSemantics.PreferTypedClass(mapped, categoryClass);
+            if (ifcClass == mapped) predefined = suffix ?? DirectIfcSemantics.PredefinedToken(mapping.IFCPredefinedType, out objectType);
           }
         }
         catch (Autodesk.Revit.Exceptions.ArgumentException) { }
-      var exportType = Text(element.get_Parameter(BuiltInParameter.IFC_EXPORT_PREDEFINEDTYPE));
-      if (string.IsNullOrWhiteSpace(exportType)) exportType = Text(type?.get_Parameter(BuiltInParameter.IFC_EXPORT_PREDEFINEDTYPE_TYPE));
-      if (!string.IsNullOrWhiteSpace(exportType)) predefined = DirectIfcSemantics.PredefinedToken(exportType, out objectType);
+#else
+        var table = IfcCategoryTable.ForRevit(element.Document.Application.VersionNumber);
+        if (table != null && long.TryParse(element.Category.Id.ToString(), out var categoryId) && table.TryGet(categoryId, out var entry))
+        {
+          if (entry.Class == null && !forced) return (null, null, null);
+          ifcClass = DirectIfcSemantics.PreferTypedClass(entry.Class, categoryClass);
+          if (ifcClass == entry.Class) predefined = entry.Predefined;
+        }
 #endif
+      }
+      var exportType = ExportText(element, false, ExportField.PredefinedType);
+      if (string.IsNullOrWhiteSpace(exportType)) exportType = ExportText(type, true, ExportField.PredefinedType);
+      if (!string.IsNullOrWhiteSpace(exportType)) predefined = DirectIfcSemantics.PredefinedToken(exportType, out objectType);
       // A category fallback is an estimate, not exporter parity.
       ifcClass = DirectIfcSemantics.NormalizeSite(DirectIfcSemantics.OccurrenceClass(ifcClass ?? categoryClass));
       predefined ??= DirectIfcSemantics.DefaultPredefinedType(categoryName, ifcClass);
@@ -144,6 +159,29 @@ namespace OpenProject.Revit.LiveSync.Bim
       return parameter.StorageType == StorageType.String ? parameter.AsString() : parameter.AsValueString();
     }
 
+    private enum ExportField { Class, PredefinedType }
+
+    // IfcExportAs and IfcExportType: Revit's built-in parameters from 2023; before, the shared parameters the 2022
+    // exporter reads by name, ignoring case (IFCExportAs; IFCExportType, then the legacy IFCType).
+    private static string ExportText(Element source, bool isType, ExportField field)
+    {
+      if (source == null) return null;
+#if REVIT2023_OR_GREATER
+      var id = field == ExportField.Class
+        ? isType ? BuiltInParameter.IFC_EXPORT_ELEMENT_TYPE_AS : BuiltInParameter.IFC_EXPORT_ELEMENT_AS
+        : isType ? BuiltInParameter.IFC_EXPORT_PREDEFINEDTYPE_TYPE : BuiltInParameter.IFC_EXPORT_PREDEFINEDTYPE;
+      return Text(source.get_Parameter(id));
+#else
+      var names = field == ExportField.Class ? new[] { "IFCExportAs" } : new[] { "IFCExportType", "IFCType" };
+      foreach (var name in names)
+        foreach (Parameter parameter in source.Parameters)
+          if (string.Equals(parameter.Definition?.Name, name, StringComparison.OrdinalIgnoreCase) &&
+              Text(parameter) is { } value && !string.IsNullOrWhiteSpace(value))
+            return value;
+      return null;
+#endif
+    }
+
     private static void AddDirectQuantities(Element element, BimElement result)
     {
       // IFC4 defines these lengths without cut-outs. Curved location paths are not claimed.
@@ -152,7 +190,10 @@ namespace OpenProject.Revit.LiveSync.Bim
         var set = DirectIfcSemantics.StraightLength(result.IfcClass, line.Length);
         if (set != null) foreach (var property in set.Properties) AddComputed(result, set.Name, set.Kind, property);
       }
-      else if (result.IfcClass == "IfcColumn" && element.Location is LocationPoint)
+      // Members without a straight path (curtain wall mullions) still have the length Revit computes for them.
+      if (result.IfcClass is "IfcMember" or "IfcBeam")
+        AddLength(result, DirectIfcSemantics.BaseQuantitySet(result.IfcClass), "Length", DoubleValue(element, BuiltInParameter.CURVE_ELEM_LENGTH));
+      if (result.IfcClass == "IfcColumn" && element.Location is LocationPoint)
       {
         double? Elevation(BuiltInParameter name) =>
           element.get_Parameter(name)?.AsElementId() is { } id && element.Document.GetElement(id) is Level level ? level.Elevation : null;
@@ -207,9 +248,11 @@ namespace OpenProject.Revit.LiveSync.Bim
       var commonSet = DirectIfcSemantics.CommonPropertySet(result.IfcClass);
       if (commonSet != null)
       {
-        if (!string.IsNullOrWhiteSpace(type?.Name))
-          AddComputed(result, commonSet, "pset", new IfcProperty { Name = "Reference", Value = type.Name });
-        AddCommonBooleans(element, type, category, result, commonSet);
+        // "Family:Type", as the Autodesk exporter writes it; without a type, the element's name.
+        var reference = type != null ? DirectIfcSemantics.Reference((type as ElementType)?.FamilyName, type.Name) : element.Name;
+        if (!string.IsNullOrWhiteSpace(reference))
+          AddComputed(result, commonSet, "pset", new IfcProperty { Name = "Reference", Value = reference });
+        if (!DirectIfcSemantics.IsTypeCommonSet(commonSet)) AddCommonProperties(element, type, category, result, commonSet);
       }
     }
 
@@ -268,7 +311,7 @@ namespace OpenProject.Revit.LiveSync.Bim
           return string.IsNullOrWhiteSpace(text) ? null : new IfcProperty { Value = text };
         case StorageType.Integer:
           var spec = RevitCompat.SpecId(parameter.Definition);
-          return spec.Contains(":yesno-") ? new IfcProperty { Value = parameter.AsInteger() != 0 }
+          return DirectIfcSemantics.IsYesNoSpec(spec) ? new IfcProperty { Value = parameter.AsInteger() != 0 }
             : new IfcProperty { Value = parameter.AsInteger() };
         case StorageType.Double:
           var raw = parameter.AsDouble();
@@ -313,6 +356,9 @@ namespace OpenProject.Revit.LiveSync.Bim
       return null;
     }
 
+    // Each class gets the quantities of its IFC4 Qto with the names and sources of the Autodesk exporter, measured on the
+    // same model exported both ways (UI-61 3.2): Revit's computed area, volume and perimeter, the element's geometry and
+    // the layers of its type. Quantities the exporter derives from its own extrusion analysis are not claimed.
     private static void AddHostQuantities(Element element, BimElement result)
     {
       var set = DirectIfcSemantics.BaseQuantitySet(result.IfcClass);
@@ -320,37 +366,223 @@ namespace OpenProject.Revit.LiveSync.Bim
       var area = DoubleValue(element, BuiltInParameter.HOST_AREA_COMPUTED);
       var volume = DoubleValue(element, BuiltInParameter.HOST_VOLUME_COMPUTED);
       var perimeter = DoubleValue(element, BuiltInParameter.HOST_PERIMETER_COMPUTED);
-      // Revit's computed area already excludes openings, so it is only NetArea. GrossArea is not claimed.
-      if (area is >= 0)
+      var type = element.Document.GetElement(element.GetTypeId());
+      void Put(IfcProperty property) { if (property != null) AddComputed(result, set, "qto", property); }
+      void Areas(params string[] names) { if (area is >= 0) foreach (var name in names) Put(DirectIfcSemantics.Area(name, area.Value)); }
+      void Volumes(params string[] names) { if (volume is >= 0) foreach (var name in names) Put(DirectIfcSemantics.Volume(name, volume.Value)); }
+      switch (result.IfcClass)
       {
-        var name = result.IfcClass == "IfcWall" ? "NetSideArea" : "NetArea";
-        AddComputed(result, set, "qto", DirectIfcSemantics.Area(name, area.Value));
-      }
-      if (volume is >= 0) AddComputed(result, set, "qto", DirectIfcSemantics.Volume("NetVolume", volume.Value));
-      if (perimeter is >= 0) AddComputed(result, set, "qto", DirectIfcSemantics.Length("Perimeter", perimeter.Value));
-      if (result.IfcClass == "IfcSlab" && element.Document.GetElement(element.GetTypeId()) is FloorType floorType)
-      {
-        var width = floorType.GetCompoundStructure()?.GetWidth();
-        if (width is > 0) AddComputed(result, set, "qto", DirectIfcSemantics.Length("Depth", width.Value));
+        case "IfcWall":
+          // Revit's wall area is what the exporter reports as both side areas; its gross volume is that area by the width.
+          Areas("NetSideArea", "GrossSideArea");
+          Volumes("NetVolume");
+          if (area is >= 0 && type is WallType wallType && wallType.Width > 0)
+            Put(DirectIfcSemantics.Volume("GrossVolume", area.Value * wallType.Width));
+          Put(Height(element));
+          AddLayers(element, type, result, set);
+          break;
+        case "IfcCurtainWall":
+          AddLength(result, set, "Length", DoubleValue(element, BuiltInParameter.CURVE_ELEM_LENGTH));
+          Put(Height(element));
+          Areas("GrossSideArea", "NetSideArea");
+          break;
+        case "IfcSlab":
+          Areas("NetArea", "GrossArea");
+          Volumes("NetVolume", "GrossVolume");
+          if (perimeter is >= 0) Put(DirectIfcSemantics.Length("Perimeter", perimeter.Value));
+          if (type is FloorType floorType && LayersWidth(floorType) is > 0 and var depth) Put(DirectIfcSemantics.Length("Depth", depth));
+          break;
+        case "IfcRoof":
+          Areas("NetArea", "GrossArea");
+          break;
+        case "IfcCovering":
+          Areas("NetArea", "GrossArea");
+          if (type is HostObjAttributes covering && LayersWidth(covering) is > 0 and var width) Put(DirectIfcSemantics.Length("Width", width));
+          AddLayers(element, type, result, set);
+          break;
+        case "IfcPlate":
+          Areas("NetArea", "GrossArea");
+          Volumes("NetVolume");
+          break;
+        case "IfcMember":
+          // A member's computed area is its cross-section: the exporter's CrossSectionArea.
+          Areas("CrossSectionArea");
+          Volumes("NetVolume");
+          Put(SurfaceArea(element));
+          break;
+        case "IfcBeam":
+        case "IfcBuildingElementProxy":
+          Volumes("NetVolume");
+          Put(SurfaceArea(element));
+          break;
+        case "IfcColumn":
+          Volumes("NetVolume", "GrossVolume");
+          // A column is a prism: its section is its volume over its length.
+          if (volume is > 0 && Quantity(result, set, "Length") is > 0 and var metres)
+            Put(DirectIfcSemantics.Area("CrossSectionArea", volume.Value / (metres / 0.3048)));
+          break;
+        case "IfcRailing":
+          AddLength(result, set, "Length", DoubleValue(element, BuiltInParameter.CURVE_ELEM_LENGTH));
+          break;
+        case "IfcDoor":
+        case "IfcWindow":
+          if (Quantity(result, set, "Width") is > 0 and var w && Quantity(result, set, "Height") is > 0 and var h)
+          {
+            Put(DirectIfcSemantics.Area("Area", w * h / 0.09290304));
+            // The exporter's window perimeter is that of its opening; a door's follows its own frame and is not claimed.
+            if (result.IfcClass == "IfcWindow") Put(DirectIfcSemantics.Length("Perimeter", 2 * (w + h) / 0.3048));
+          }
+          break;
       }
     }
 
-    private static void AddCommonBooleans(Element element, Element type, BuiltInCategory category, BimElement result, string set)
+    // A quantity already computed for this element, in metres or square metres.
+    private static double? Quantity(BimElement result, string set, string name) =>
+      result.IfcSets.Find(s => s.Name == set && s.Kind == "qto")?.Properties.Find(p => p.Name == name)?.Value is double value ? value : null;
+
+    // The vertical extent of the element, which matches the exporter's wall height (UI-61 3.2: 137 of 146 walls).
+    private static IfcProperty Height(Element element)
     {
+      var box = element.get_BoundingBox(null);
+      return box == null || box.Max.Z - box.Min.Z <= 0 ? null : DirectIfcSemantics.Length("Height", box.Max.Z - box.Min.Z);
+    }
+
+    private static double? LayersWidth(HostObjAttributes type)
+    {
+      using var compound = type.GetCompoundStructure();
+      return compound?.GetWidth();
+    }
+
+    // The exporter reports each layer of a compound type with its width; here, «Capa: <material>» in metres.
+    private static void AddLayers(Element element, Element type, BimElement result, string set)
+    {
+      if (type is not HostObjAttributes host) return;
+      using var compound = host.GetCompoundStructure();
+      if (compound == null) return;
+      var names = new HashSet<string>(StringComparer.Ordinal);
+      foreach (var layer in compound.GetLayers())
+      {
+        if (layer.Width <= 0) continue;
+        var material = (element.Document.GetElement(layer.MaterialId) as Material)?.Name;
+        var name = "Capa: " + (string.IsNullOrWhiteSpace(material) ? layer.Function.ToString() : material);
+        var unique = name;
+        for (var n = 2; !names.Add(unique); n++) unique = name + " (" + n + ")";
+        AddComputed(result, set, "qto", DirectIfcSemantics.Length(unique, layer.Width));
+      }
+    }
+
+    // The area of every face of the element's solids, as the exporter's NetSurfaceArea.
+    private static IfcProperty SurfaceArea(Element element)
+    {
+      var total = 0.0;
+      void Walk(GeometryElement geometry)
+      {
+        foreach (var item in geometry)
+          if (item is Solid solid && solid.Faces.Size > 0) foreach (Face face in solid.Faces) total += face.Area;
+          else if (item is GeometryInstance instance && instance.GetInstanceGeometry() is { } inner) Walk(inner);
+      }
+      try
+      {
+        if (element.get_Geometry(new Options { DetailLevel = ViewDetailLevel.Fine }) is { } geometry) Walk(geometry);
+      }
+      catch (Autodesk.Revit.Exceptions.ApplicationException) { return null; }
+      return total > 0 ? DirectIfcSemantics.Area("NetSurfaceArea", total) : null;
+    }
+
+    // The common set as the Autodesk exporter fills it (UI-61 3.1): LoadBearing, IsExternal on every element,
+    // ExtendToStructure, FireRating, the beam's Span, Slope and Roll, the railing's Height, the stair's risers and
+    // treads and the ceiling's Finish.
+    private static void AddCommonProperties(Element element, Element type, BuiltInCategory category, BimElement result, string set)
+    {
+      void Put(IfcProperty property) { if (property?.Value != null) AddComputed(result, set, "pset", property); }
       Parameter structural = null;
       if (result.IfcClass == "IfcSlab") structural = element.get_Parameter(BuiltInParameter.FLOOR_PARAM_IS_STRUCTURAL);
       else if (result.IfcClass == "IfcWall") structural = element.get_Parameter(BuiltInParameter.WALL_STRUCTURAL_SIGNIFICANT);
       if (structural?.HasValue == true && structural.StorageType == StorageType.Integer)
-        AddComputed(result, set, "pset", new IfcProperty { Name = "LoadBearing", Value = structural.AsInteger() != 0 });
+        Put(new IfcProperty { Name = "LoadBearing", Value = structural.AsInteger() != 0 });
       // Only Revit's structural categories carry loads by definition; architectural columns and mullions stay undeclared.
       else if (category is BuiltInCategory.OST_StructuralColumns or BuiltInCategory.OST_StructuralFraming or BuiltInCategory.OST_StructuralFoundation)
-        AddComputed(result, set, "pset", new IfcProperty { Name = "LoadBearing", Value = true });
+        Put(new IfcProperty { Name = "LoadBearing", Value = true });
 
-      var hostType = (element as FamilyInstance)?.Host is Wall hostWall
-        ? element.Document.GetElement(hostWall.GetTypeId()) : type;
-      var function = hostType?.get_Parameter(BuiltInParameter.FUNCTION_PARAM);
-      if (function?.HasValue == true && function.StorageType == StorageType.Integer)
-        AddComputed(result, set, "pset", new IfcProperty { Name = "IsExternal", Value = function.AsInteger() == 1 });
+      Put(new IfcProperty { Name = "IsExternal", Value = IsExternal(element, type, 0) });
+      if (element is Wall && element.get_Parameter(BuiltInParameter.WALL_TOP_IS_ATTACHED) is { HasValue: true, StorageType: StorageType.Integer } top)
+        Put(new IfcProperty { Name = "ExtendToStructure", Value = top.AsInteger() != 0 });
+      var fireRating = Text(element.get_Parameter(BuiltInParameter.FIRE_RATING));
+      if (string.IsNullOrWhiteSpace(fireRating)) fireRating = Text(type?.get_Parameter(BuiltInParameter.FIRE_RATING));
+      if (!string.IsNullOrWhiteSpace(fireRating)) Put(new IfcProperty { Name = "FireRating", Value = fireRating });
+
+      if (result.IfcClass == "IfcBeam")
+      {
+        if (element.Location is LocationCurve path && path.Curve is Line span) Put(DirectIfcSemantics.Length("Span", span.Length));
+        var length = DoubleValue(element, BuiltInParameter.INSTANCE_LENGTH_PARAM);
+        var start = DoubleValue(element, BuiltInParameter.STRUCTURAL_BEAM_END0_ELEVATION);
+        var end = DoubleValue(element, BuiltInParameter.STRUCTURAL_BEAM_END1_ELEVATION);
+        if (length is > 0 && start != null && end != null && Math.Abs(end.Value - start.Value) <= length.Value)
+          Put(Angle("Slope", Math.Asin(Math.Abs(end.Value - start.Value) / length.Value)));
+        if (DoubleValue(element, BuiltInParameter.STRUCTURAL_BEND_DIR_ANGLE) is { } roll) Put(Angle("Roll", roll));
+      }
+      if (type is Autodesk.Revit.DB.Architecture.RailingType railing && railing.TopRailHeight > 0)
+        Put(DirectIfcSemantics.Length("Height", railing.TopRailHeight));
+      AddStairProperties(element, Put);
+      if (element is Ceiling ceiling && type is HostObjAttributes ceilingType)
+      {
+        using var compound = ceilingType.GetCompoundStructure();
+        var finishes = compound?.GetLayers()
+          .Where(layer => layer.Function is MaterialFunctionAssignment.Finish1 or MaterialFunctionAssignment.Finish2)
+          .Select(layer => (ceiling.Document.GetElement(layer.MaterialId) as Material)?.Name)
+          .Where(name => !string.IsNullOrWhiteSpace(name)).Distinct().ToList();
+        if (finishes?.Count > 0) Put(new IfcProperty { Name = "Finish", Value = string.Concat(finishes.Select(name => name + ";")) });
+      }
+    }
+
+    private static IfcProperty Angle(string name, double radians) =>
+      NetCompat.IsFinite(radians) ? new IfcProperty { Name = name, Value = radians, Unit = "radian", Type = "planeangle" } : null;
+
+    // Risers and treads as the exporter reads them for a stair and for each of its runs.
+    private static void AddStairProperties(Element element, Action<IfcProperty> put)
+    {
+      Autodesk.Revit.DB.Architecture.Stairs stairs;
+      int risers, treads;
+      double riserHeight;
+      Autodesk.Revit.DB.Architecture.StairsRun run;
+      if (element is Autodesk.Revit.DB.Architecture.StairsRun stairsRun)
+      {
+        run = stairsRun; stairs = run.GetStairs();
+        risers = run.ActualRisersNumber; treads = run.ActualTreadsNumber;
+        riserHeight = risers > 0 ? run.Height / risers : 0;
+      }
+      else if (element is Autodesk.Revit.DB.Architecture.Stairs whole)
+      {
+        stairs = whole; run = whole.Document.GetElement(whole.GetStairsRuns().FirstOrDefault() ?? ElementId.InvalidElementId) as Autodesk.Revit.DB.Architecture.StairsRun;
+        risers = whole.ActualRisersNumber; treads = whole.ActualTreadsNumber; riserHeight = whole.ActualRiserHeight;
+      }
+      else return;
+      if (risers > 0) put(new IfcProperty { Name = "NumberOfRiser", Value = risers });
+      if (treads > 0) put(new IfcProperty { Name = "NumberOfTreads", Value = treads });
+      if (riserHeight > 0) put(DirectIfcSemantics.Length("RiserHeight", riserHeight));
+      if (stairs?.ActualTreadDepth is > 0 and var tread)
+        foreach (var name in new[] { "TreadLength", "TreadLengthAtInnerSide", "TreadLengthAtOffset" })
+          put(DirectIfcSemantics.Length(name, tread));
+      if (run != null && run.Document.GetElement(run.GetTypeId()) is Autodesk.Revit.DB.Architecture.StairsRunType runType && runType.NosingLength > 0)
+        put(DirectIfcSemantics.Length("NosingLength", runType.NosingLength));
+    }
+
+    // As the Autodesk exporter decides it: an «IsExternal» parameter, the type's Function (anything but Interior),
+    // roofs always, and a hosted family instance as its host.
+    private static bool IsExternal(Element element, Element type, int depth)
+    {
+      foreach (var source in new[] { element, type })
+        if (source?.LookupParameter("IsExternal") is { HasValue: true, StorageType: StorageType.Integer } flag) return flag.AsInteger() != 0;
+      if (type?.get_Parameter(BuiltInParameter.FUNCTION_PARAM) is { HasValue: true, StorageType: StorageType.Integer } function)
+        return function.AsInteger() != (int)WallFunction.Interior;
+      var categoryId = element.Category?.Id.ToString();
+      if (categoryId == ((int)BuiltInCategory.OST_Roofs).ToString() || categoryId == ((int)BuiltInCategory.OST_MassExteriorWall).ToString()) return true;
+      if (depth < 4 && element is FamilyInstance instance)
+      {
+        var host = instance.Host ?? (instance.HostFace != null ? element.Document.GetElement(instance.HostFace) : null);
+        if (host != null) return IsExternal(host, host.Document.GetElement(host.GetTypeId()), depth + 1);
+      }
+      return false;
     }
 
     private static double? DoubleValue(Element element, BuiltInParameter name)

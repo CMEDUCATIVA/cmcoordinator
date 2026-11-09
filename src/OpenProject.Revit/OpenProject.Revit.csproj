@@ -22,7 +22,7 @@
     <!-- Fallback to 2022 if no specific version is detected -->
     <RevitVersion Condition="'$(RevitVersion)' == ''">2022</RevitVersion>
     <LangVersion>latest</LangVersion>
-    <Version>2026.10.13</Version>
+    <Version>2026.10.14</Version>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -50,9 +50,12 @@
     <DefineConstants Condition="'$(Revit2021)' == true">$(DefineConstants);Version2021</DefineConstants>
     <DefineConstants Condition="'$(Revit2020)' == true">$(DefineConstants);Version2020</DefineConstants>
     <DefineConstants Condition="'$(Revit2019)' == true">$(DefineConstants);Version2019</DefineConstants>
-    <!-- API generations (as in pyRevit): ForgeTypeId units from 2021, ForgeTypeId groups and specs from 2022. -->
+    <!-- API generations (as in pyRevit): ForgeTypeId units from 2021, ForgeTypeId groups and specs from 2022,
+         built-in IfcExportAs/IfcExportType parameters from 2023, the IFC category template from 2025. -->
     <DefineConstants Condition="'$(RevitVersion)' &gt;= 2021">$(DefineConstants);REVIT2021_OR_GREATER</DefineConstants>
     <DefineConstants Condition="'$(RevitVersion)' &gt;= 2022">$(DefineConstants);REVIT2022_OR_GREATER</DefineConstants>
+    <DefineConstants Condition="'$(RevitVersion)' &gt;= 2023">$(DefineConstants);REVIT2023_OR_GREATER</DefineConstants>
+    <DefineConstants Condition="'$(RevitVersion)' &gt;= 2025">$(DefineConstants);REVIT2025_OR_GREATER</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">

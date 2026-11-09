@@ -21,7 +21,9 @@ namespace OpenProject.Revit.LiveSync.Bim
       ["IfcPlate"] = "Qto_PlateBaseQuantities", ["IfcCovering"] = "Qto_CoveringBaseQuantities",
       ["IfcDoor"] = "Qto_DoorBaseQuantities", ["IfcWindow"] = "Qto_WindowBaseQuantities",
       ["IfcPipeSegment"] = "Qto_PipeSegmentBaseQuantities", ["IfcDuctSegment"] = "Qto_DuctSegmentBaseQuantities",
-      ["IfcCableCarrierSegment"] = "Qto_CableCarrierSegmentBaseQuantities"
+      ["IfcCableCarrierSegment"] = "Qto_CableCarrierSegmentBaseQuantities",
+      ["IfcCurtainWall"] = "Qto_CurtainWallQuantities", ["IfcRailing"] = "Qto_RailingBaseQuantities",
+      ["IfcBuildingElementProxy"] = "Qto_BuildingElementProxyQuantities"
     };
 
     private static readonly Dictionary<string, string> CommonPropertySets = new(StringComparer.Ordinal)
@@ -33,8 +35,27 @@ namespace OpenProject.Revit.LiveSync.Bim
       ["IfcDoor"] = "Pset_DoorCommon", ["IfcWindow"] = "Pset_WindowCommon",
       ["IfcRailing"] = "Pset_RailingCommon", ["IfcStair"] = "Pset_StairCommon",
       ["IfcStairFlight"] = "Pset_StairFlightCommon", ["IfcCurtainWall"] = "Pset_CurtainWallCommon",
-      ["IfcBuildingElementProxy"] = "Pset_BuildingElementProxyCommon"
+      ["IfcBuildingElementProxy"] = "Pset_BuildingElementProxyCommon",
+      // Furniture and light fixtures only have a common set for their type; the exporter writes its Reference.
+      ["IfcFurniture"] = "Pset_FurnitureTypeCommon", ["IfcLightFixture"] = "Pset_LightFixtureTypeCommon"
     };
+
+    // Revit's Yes/No parameters are autodesk.spec:spec.bool (RevitCompat maps ParameterType.YesNo to it before 2021);
+    // ":yesno-" is kept for any older spec. IFC needs IfcBoolean, not the integer Revit stores.
+    public static bool IsYesNoSpec(string specId) =>
+      specId != null && (specId.Contains("spec.bool") || specId.Contains(":yesno-"));
+
+    // As the Autodesk exporter writes it: "Family:Type", or whichever of the two exists.
+    public static string Reference(string familyName, string typeName)
+    {
+      var family = string.IsNullOrWhiteSpace(familyName) ? null : familyName.Trim();
+      var type = string.IsNullOrWhiteSpace(typeName) ? null : typeName.Trim();
+      return family != null && type != null ? family + ":" + type : type ?? family;
+    }
+
+    // A type common set (Pset_…TypeCommon) carries only the Reference.
+    public static bool IsTypeCommonSet(string setName) =>
+      setName != null && setName.EndsWith("TypeCommon", StringComparison.Ordinal);
 
     // buildingSMART classes for Revit categories whose meaning does not depend on the project template.
     // They win over the template (an old template maps mullions and panels to IfcCurtainWall),
@@ -66,6 +87,15 @@ namespace OpenProject.Revit.LiveSync.Bim
 
     public static string DefaultPredefinedType(string category, string ifcClass) =>
       DefaultPredefinedTypes.TryGetValue((category ?? "") + "|" + (ifcClass ?? ""), out var value) ? value : null;
+
+    // IfcExportAs = "DontExport" (letters only, any case) excludes the element, as in the Autodesk exporter.
+    public static bool IsDontExport(string candidate)
+    {
+      if (string.IsNullOrWhiteSpace(candidate)) return false;
+      var letters = new System.Text.StringBuilder();
+      foreach (var c in candidate) if (char.IsLetter(c)) letters.Append(char.ToUpperInvariant(c));
+      return letters.ToString() == "DONTEXPORT";
+    }
 
     // "IfcSlab.ROOF" carries the predefined type after the dot, as in Revit's IfcExportAs parameter.
     public static (string Class, string Predefined) ParseEntity(string candidate)

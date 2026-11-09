@@ -65,14 +65,44 @@ namespace OpenProject.Tests.LiveSync
     [Theory]
     [InlineData("IfcSlab", "Qto_SlabBaseQuantities", "Pset_SlabCommon")]
     [InlineData("IfcWall", "Qto_WallBaseQuantities", "Pset_WallCommon")]
-    [InlineData("IfcBuildingElementProxy", null, "Pset_BuildingElementProxyCommon")]
-    [InlineData("IfcCurtainWall", null, "Pset_CurtainWallCommon")]
+    [InlineData("IfcBuildingElementProxy", "Qto_BuildingElementProxyQuantities", "Pset_BuildingElementProxyCommon")]
+    [InlineData("IfcCurtainWall", "Qto_CurtainWallQuantities", "Pset_CurtainWallCommon")]
+    [InlineData("IfcRailing", "Qto_RailingBaseQuantities", "Pset_RailingCommon")]
+    [InlineData("IfcFurniture", null, "Pset_FurnitureTypeCommon")]
+    [InlineData("IfcLightFixture", null, "Pset_LightFixtureTypeCommon")]
     [InlineData("IfcGeographicElement", null, null)]
     public void StandardSetNamesAreResolvedByIfcClass(string ifcClass, string qto, string pset)
     {
       Assert.Equal(qto, DirectIfcSemantics.BaseQuantitySet(ifcClass));
       Assert.Equal(pset, DirectIfcSemantics.CommonPropertySet(ifcClass));
     }
+
+    // Measured in Revit: Yes/No parameters carry autodesk.spec:spec.bool-1.0.0, never ":yesno-" (UI-61 3.5).
+    [Theory]
+    [InlineData("autodesk.spec:spec.bool-1.0.0", true)]
+    [InlineData("autodesk.spec.aec:yesno-1.0.0", true)]
+    [InlineData("autodesk.spec:spec.int64-2.0.0", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void YesNoParametersAreRecognisedBySpec(string spec, bool yesNo) =>
+      Assert.Equal(yesNo, DirectIfcSemantics.IsYesNoSpec(spec));
+
+    // The exporter's Reference: «Muro básico:Exterior - Insulation on Masonry» (UI-61 3.1).
+    [Theory]
+    [InlineData("Muro básico", "Exterior - Insulation on Masonry", "Muro básico:Exterior - Insulation on Masonry")]
+    [InlineData("Rectangular Mullion", "50 x 150mm", "Rectangular Mullion:50 x 150mm")]
+    [InlineData(null, "50 x 150mm", "50 x 150mm")]
+    [InlineData("Muro básico", " ", "Muro básico")]
+    [InlineData(null, null, null)]
+    public void ReferenceIsFamilyAndType(string family, string type, string expected) =>
+      Assert.Equal(expected, DirectIfcSemantics.Reference(family, type));
+
+    [Theory]
+    [InlineData("Pset_FurnitureTypeCommon", true)]
+    [InlineData("Pset_LightFixtureTypeCommon", true)]
+    [InlineData("Pset_WallCommon", false)]
+    public void TypeCommonSetsOnlyCarryTheReference(string setName, bool typeCommon) =>
+      Assert.Equal(typeCommon, DirectIfcSemantics.IsTypeCommonSet(setName));
 
     [Fact]
     public void AreaUsesSquareMetres()
