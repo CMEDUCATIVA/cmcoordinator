@@ -413,3 +413,6 @@ skill_desarrollo/IfcOpenShell-*/
 skill_desarrollo/0_Referencias/acceso.md
 skill_desarrollo/**/instalacion/
 **/__pycache__/
+
+# Local remote-work scripts and logs (server access), never versioned
+.remote_work/
